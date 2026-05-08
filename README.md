@@ -1,15 +1,15 @@
 # custom-esimd-kernels-vllm
 
-这个仓库当前保留的是一个最小化的 XPU SYCL 扩展，只导出一个算子：`esimd_gemv_fp8_pert`。
+这个仓库当前保留的是一个最小化的 XPU SYCL 扩展，只导出一个算子：`esimd_gemv_fp8`。
 
 ## 目录说明
 
 - `setup.py`：编译入口。
 - `esimd_build_extention.py`：本地 BuildExtension，负责调用 PyTorch 的扩展编译流程。
-- `csrc/xpu/esimd_kernel.sycl`：`esimd_gemv_fp8_pert` 的 SYCL 入口实现。
+- `csrc/xpu/esimd_kernel.sycl`：`esimd_gemv_fp8_*` 的 SYCL 入口实现。
 - `csrc/xpu/torch_extension.cc`：PyTorch dispatcher 注册。
 - `python/custom_esimd_kernels_vllm/`：Python 导入与包装层。
-- `tests/test_gemv_fp8_pert.py`：最小测试入口。
+- `tests/test_gemv_fp8.py`：最小测试入口。
 
 ## 环境要求
 
