@@ -84,7 +84,7 @@ def benchmark_shapes():
         ("Router",        512, 2048),
     ]
 
-    TARGET_BW = 450.0  # GB/s BMG
+    TARGET_BW = 112.0  # GB/s PTL
 
     print(f"\n{'Shape':<18} {'N':>6} {'K':>6} {'KB':>7} | {'GB/s':>8} {'BW%':>7} {'us':>8}")
     print("-" * 70)
@@ -139,7 +139,7 @@ def benchmark_fused():
         esimd_gemv_fp8_pern, 
     )
 
-    TARGET_BW = 450.0  # GB/s BMG
+    TARGET_BW = 112.0  # GB/s PTL
 
     print(f"\n{'Case':<20} {'Config':>20} | {'Indiv us':>10} {'Fused us':>10} {'Speedup':>8}")
     print("-" * 78)
