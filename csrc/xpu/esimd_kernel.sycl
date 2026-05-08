@@ -1,0 +1,31 @@
+#include <ATen/ATen.h>
+#include <ATen/Parallel.h>
+#include <c10/xpu/XPUStream.h>
+#include <torch/python.h>
+
+#include <cstdint>
+#include <sycl/sycl.hpp>
+
+#include "esimd_kernels/fp8_GEMV_v2.h"
+
+#define EXTRACT_PTR(var, tensor) auto var = reinterpret_cast<uint8_t*>(tensor.data_ptr())
+
+inline int get_fp8_mode(const at::Tensor& weight) {
+    return (weight.scalar_type() == at::ScalarType::Float8_e5m2) ? 1 : 0;
+}
+
+static inline sycl::queue& get_device_queue(const at::Tensor& tensor) {
+    return c10::xpu::getCurrentXPUStream(tensor.device().index()).queue();
+}
+
+at::Tensor esimd_gemv_fp8_pert(
+    at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
+    at::Tensor output) {
+    int64_t N = weight.size(0);
+    int64_t K = weight.size(1);
+    EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
+    EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
+    auto& dpcpp_queue = get_device_queue(input);
+    GEMV_fp8_pert_host(p_in, p_w, p_sc, p_out, N, K, get_fp8_mode(weight), dpcpp_queue);
+    return output;
+}
