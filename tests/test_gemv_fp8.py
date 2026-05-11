@@ -66,27 +66,21 @@ def test_correctness_with_scale():
 
 
 def benchmark_shapes():
-    """Benchmark Qwen3-Next-80B-A3B TP4 shapes."""
+    """Benchmark gemma-4-E4B-it shape."""
     from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
 
     shapes = [
-        ("Attn qkv",     2560, 2048),
-        ("Attn o_proj",  2048, 1024),
-        ("DN qkvz",      3072, 2048),
-        ("DN ba",          16, 2048),
-        ("DN out_proj",  2048, 1024),
-        ("Exp gate",      512, 2048),
-        ("Exp up",        512, 2048),
-        ("Exp down",     2048,  512),
-        ("Sh gate",       128, 2048),
-        ("Sh up",         128, 2048),
-        ("Sh down",      2048,  128),
-        ("Router",        512, 2048),
+        ("qkv_proj",     2560, 3072),
+        ("Attn o_proj",  2048, 2560),
+        ("gate_up_proj", 2560, 20480),
+        ("down_proj",   10240, 2560),
+        ("per_layer_input_gate",  2560, 256),
+        ("per_layer_input_gate_out",      256, 2560),
     ]
 
     TARGET_BW = 112.0  # GB/s PTL
 
-    print(f"\n{'Shape':<18} {'N':>6} {'K':>6} {'KB':>7} | {'GB/s':>8} {'BW%':>7} {'us':>8}")
+    print(f"\n{'Shape':<30} {'N':>6} {'K':>6} {'KB':>7} | {'GB/s':>8} {'BW%':>7} {'us':>8}")
     print("-" * 70)
 
     for name, N, K in shapes:
@@ -129,7 +123,7 @@ def benchmark_shapes():
         us = ms * 1000
         bw_pct = bw / TARGET_BW * 100
 
-        print(f"{name:<18} {N:>6} {K:>6} {total_bytes//1024:>6}K | {bw:>7.1f} {bw_pct:>6.1f}% {us:>7.2f}")
+        print(f"{name:<30} {N:>6} {K:>6} {total_bytes//1024:>6}K | {bw:>7.1f} {bw_pct:>6.1f}% {us:>7.2f}")
 
 
 
@@ -336,15 +330,17 @@ def benchmark_e5m2():
     from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
 
     shapes = [
-        ("Attn qkv",     2560, 2048),
-        ("DN qkvz",      3072, 2048),
-        ("Exp gate",      512, 2048),
-        ("Sh gate",       128, 2048),
+        ("qkv_proj",     2560, 3072),
+        ("Attn o_proj",  2048, 2560),
+        ("gate_up_proj", 2560, 20480),
+        ("down_proj",   10240, 2560),
+        ("per_layer_input_gate",  2560, 256),
+        ("per_layer_input_gate_out",      256, 2560),
     ]
 
     TARGET_BW = 450.0
 
-    print(f"\n{'Shape':<18} {'N':>6} {'K':>6} | {'E4M3 us':>9} {'E5M2 us':>9} {'E4M3 GB/s':>10} {'E5M2 GB/s':>10}")
+    print(f"\n{'Shape':<30} {'N':>6} {'K':>6} | {'E4M3 us':>9} {'E5M2 us':>9} {'E4M3 GB/s':>10} {'E5M2 GB/s':>10}")
     print("-" * 80)
 
     for name, N, K in shapes:
@@ -382,7 +378,7 @@ def benchmark_e5m2():
 
         e4_us, e4_bw = results["E4M3"]
         e5_us, e5_bw = results["E5M2"]
-        print(f"{name:<18} {N:>6} {K:>6} | {e4_us:>8.2f} {e5_us:>8.2f} {e4_bw:>9.1f} {e5_bw:>9.1f}")
+        print(f"{name:<30} {N:>6} {K:>6} | {e4_us:>8.2f} {e5_us:>8.2f} {e4_bw:>9.1f} {e5_bw:>9.1f}")
 
 
 if __name__ == "__main__":
@@ -401,14 +397,11 @@ if __name__ == "__main__":
     # E5M2 tests
     test_e5m2_correctness_pern()
     test_e5m2_correctness_pert()
-    test_e5m2_fused()
 
     # Performance
     print("\n--- Performance Benchmark (unfused per-N, E4M3) ---")
     benchmark_shapes()
 
-    print("\n--- Performance Benchmark (fused vs individual) ---")
-    benchmark_fused()
 
     print("\n--- Performance Benchmark (E4M3 vs E5M2) ---")
     benchmark_e5m2()
