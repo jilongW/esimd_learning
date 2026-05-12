@@ -198,6 +198,8 @@ def benchmark_best_vl_ks():
         (128, 4),
         (128, 5),
         (128, 10),
+        (64, 10),
+        (64, 5),
     ]
 
     print(f"\n{'Shape':<30} {'N':>6} {'K':>6} | {'Best':>9} {'Auto us':>10} {'Best us':>10} {'Speedup':>8}")
