@@ -100,12 +100,12 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
         vl = 256; ks = 2;
     }
 
-    if ( N > 2560 && K >= 2048){
-        vl = 512; ks = 1;
-    }else if (N > 1280 && K >= 2048) {
+    if ( N >= 2048 && K >= 4096){
         vl = 512; ks = 2;
-    }else if (N >= 256 && K >= 2048) {
+    }else if (N >= 4096 && K >= 2560) {
         vl = 256; ks = 2;
+    }else if (N >= 2048 && K >= 2048) {
+        vl = 256; ks = 1;
     }
 
     int kpt = K / ks;
