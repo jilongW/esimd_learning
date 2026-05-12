@@ -7,7 +7,7 @@
 
 TORCH_LIBRARY(custom_esimd_kernels_vllm, m) {
   m.def("esimd_gemv_fp8_pern(Tensor input, Tensor weight, Tensor weight_scale, "
-        "Tensor output, int N, int K) -> Tensor");
+        "Tensor output, int N, int K, int vl, int ks) -> Tensor");
   m.impl("esimd_gemv_fp8_pern", torch::kXPU, &esimd_gemv_fp8_pern);
 
   m.def("esimd_gemv_fp8_pert(Tensor input, Tensor weight, Tensor weight_scale, "

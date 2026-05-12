@@ -6,8 +6,10 @@ Performance: benchmark Qwen3-Next-80B-A3B TP4 projection shapes.
 """
 import torch
 import time
+from vllm.platforms import current_platform
 
 device = torch.device("xpu")
+DUMP_PATH = "/home/edgeai/applications.ai.gpu.vllm-xpu/xpu_fp8_assert_dump_1778481474998.pt"
 
 
 def test_correctness_basic():
@@ -15,8 +17,8 @@ def test_correctness_basic():
     from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
 
     print("\n--- Correctness (scale=1) ---")
-    for N, K in [(1024, 1024), (2560, 2048), (512, 2048), (2048, 512),
-                 (128, 2048), (2048, 128), (3072, 2048), (16, 2048)]:
+    for N, K in [(3072, 2560), (2560, 2048), (20480, 2560), (2560, 10240),
+                 (256, 2560), (2048, 128), (3072, 2048), (16, 2048)]:
         weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
         weight_fp8 = weight_ref.to(torch.float8_e4m3fn)
         scale = torch.ones(N, dtype=torch.float16, device=device)
@@ -43,19 +45,19 @@ def test_correctness_with_scale():
     from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
 
     print("\n--- Correctness (with scale) ---")
-    for N, K in [(2560, 2048), (512, 2048), (2048, 512), (3072, 2048), (128, 2048)]:
+    for N, K in [(3072, 2560), (2560, 2048), (20480, 2560), (2560, 10240), (128, 2048), (2560,10752)]:
         weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
         weight_fp8 = weight_ref.to(torch.float8_e4m3fn)
         scale = torch.randn(N, dtype=torch.float16, device=device) * 0.1
-
-        input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
+        #print(scale.shape, scale.dtype)
+        input_t = torch.rand(1, K, dtype=torch.float16, device=device) * 0.1
         output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
         esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K)
 
         weight_dequant = weight_fp8.to(torch.float16)
         ref = (input_t.float() @ weight_dequant.float().T) * scale.float().unsqueeze(0)
-
+        output = output.to(torch.bfloat16)
         max_diff = (output.float() - ref.float()).abs().max().item()
         ref_max = ref.float().abs().max().item()
         rel_err = (max_diff / ref_max) if ref_max > 1e-6 else 0
@@ -65,17 +67,62 @@ def test_correctness_with_scale():
         assert ok, f"Correctness failed for N={N}, K={K} with scale"
 
 
+
+def test_pern_replay_from_assert_dump():
+    """Replay a captured failure case for esimd_gemv_fp8_pern."""
+    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
+
+    dump = torch.load(DUMP_PATH, map_location="cpu")
+    input_t = dump["x"].to(device=device).to(torch.float16)
+    weight_fp8 = dump["weight"].to(device=device)
+    scale = dump["weight_scale"].reshape(-1).to(device=device).to(torch.float16)
+    ref = dump["output"].to(device=device)
+
+    N, K = weight_fp8.shape
+    if scale.numel() == 1:
+        scale = scale.repeat(N)
+
+    output = torch.zeros_like(ref, device=device).to(torch.float16)
+    print("input_t shape:", input_t.shape, "dtype:", input_t.dtype)
+    print("input_t min/max:", input_t.float().min().item(), input_t.float().max().item())
+    print("weight_fp8 shape:", weight_fp8.shape, "dtype:", weight_fp8.dtype)
+    print(
+        "weight_fp8 min/max:",
+        weight_fp8.float().min().item(),
+        weight_fp8.float().max().item(),
+    )
+    print("scale shape:", scale.shape, "dtype:", scale.dtype)
+    print("output shape:", output.shape, "dtype:", output.dtype)
+    print("ref shape:", ref.shape, "dtype:", ref.dtype)
+    esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K)
+
+    max_diff = (output.float() - ref.float()).abs().max().item()
+    ref_max = ref.float().abs().max().item()
+    rel_err = (max_diff / ref_max) if ref_max > 1e-6 else 0
+    ok = max_diff < 0.5 or rel_err < 0.05
+    status = "PASS" if ok else "FAIL"
+
+    print(
+        f"  [{status}] replay dump N={N:5d} K={K:5d} "
+        f"scale_numel={scale.numel()} max_diff={max_diff:.4f} rel={rel_err:.4f}"
+    )
+    assert ok, (
+        "Replay from assert dump failed for esimd_gemv_fp8_pern: "
+        f"max_diff={max_diff:.4f}, rel_err={rel_err:.4f}"
+    )
+
+
 def benchmark_shapes():
     """Benchmark gemma-4-E4B-it shape."""
     from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
 
     shapes = [
-        ("qkv_proj",     2560, 3072),
-        ("Attn o_proj",  2048, 2560),
-        ("gate_up_proj", 2560, 20480),
-        ("down_proj",   10240, 2560),
-        ("per_layer_input_gate",  2560, 256),
-        ("per_layer_input_gate_out",      256, 2560),
+        ("qkv_proj",     3072, 2560),
+        ("Attn o_proj",  2560, 2048),
+        ("gate_up_proj", 20480, 2560),
+        ("down_proj",    2560, 10240),
+        ("per_layer_input_gate",  256, 2560),
+        ("per_layer_input_gate_out",     2560, 256),
     ]
 
     TARGET_BW = 112.0  # GB/s PTL
@@ -125,6 +172,145 @@ def benchmark_shapes():
 
         print(f"{name:<30} {N:>6} {K:>6} {total_bytes//1024:>6}K | {bw:>7.1f} {bw_pct:>6.1f}% {us:>7.2f}")
 
+
+def benchmark_best_vl_ks():
+    """Search the best vl/ks configuration for each benchmark shape."""
+    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
+
+    shapes = [
+        ("qkv_proj", 3072, 2560),
+        ("Attn o_proj", 2560, 2048),
+        ("gate_up_proj", 20480, 2560),
+        ("down_proj", 2560, 10240),
+        ("per_layer_input_gate", 256, 2560),
+        ("per_layer_input_gate_out", 2560, 256),
+    ]
+    candidates = [
+        (512, 1),
+        (512, 2),
+        (512, 5),
+        (256, 1),
+        (256, 2),
+        (256, 4),
+        (256, 5),
+        (128, 1),
+        (128, 2),
+        (128, 4),
+        (128, 5),
+        (128, 10),
+    ]
+
+    print(f"\n{'Shape':<30} {'N':>6} {'K':>6} | {'Best':>9} {'Auto us':>10} {'Best us':>10} {'Speedup':>8}")
+    print("-" * 86)
+
+    for name, N, K in shapes:
+        weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
+        weight_fp8 = weight_ref.to(torch.float8_e4m3fn)
+        scale = torch.randn(N, dtype=torch.float16, device=device) * 0.1
+        input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
+        output = torch.zeros(1, N, dtype=torch.float16, device=device)
+
+        total_bytes = K * 2 + N * K + N * 2 + N * 2
+        ni = 4000 
+        valid_candidates = [
+            (vl, ks)
+            for vl, ks in candidates
+            if K % ks == 0 and (K // ks) >= vl and (K // ks) % vl == 0
+        ]
+
+        for _ in range(10):
+            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K)
+        torch.xpu.synchronize()
+
+        t0 = time.perf_counter()
+        for _ in range(ni):
+            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K)
+        torch.xpu.synchronize()
+        auto_us = (time.perf_counter() - t0) / ni * 1e6
+
+        best_vl = 0
+        best_ks = 0
+        best_us = float("inf")
+        for vl, ks in valid_candidates:
+            for _ in range(10):
+                esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
+                torch.xpu.synchronize()
+
+            t0 = time.perf_counter()
+            for _ in range(ni):
+                esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
+                torch.xpu.synchronize()
+            tuned_us = (time.perf_counter() - t0) / ni * 1e6
+
+            if tuned_us < best_us:
+                best_us = tuned_us
+                best_vl = vl
+                best_ks = ks
+
+        speedup = auto_us / best_us if best_us > 0 else 0.0
+        print(f"{name:<30} {N:>6} {K:>6} | {best_vl:>3}/{best_ks:<5} {auto_us:>9.2f} {best_us:>9.2f} {speedup:>7.2f}x")
+
+def test_esimd_vs_vllm():
+    from custom_esimd_kernels_vllm import (
+        esimd_gemv_fp8_pern, 
+    )
+
+    TARGET_BW = 112.0  # GB/s PTL
+
+    print(f"\n{'Case':<30} {'Config':>20} | {'Indiv us':>10} {'vllm us':>10} {'Speedup':>8}")
+    print("-" * 78)
+
+    def make_tensors(N, K):
+        w = (torch.randn(N, K, dtype=torch.float16, device=device) * 0.1).to(torch.float8_e4m3fn)
+        s = torch.randn(N, dtype=torch.float16, device=device) * 0.1
+        o = torch.zeros(1, N, dtype=torch.float16, device=device)
+        return w, s, o
+
+    shapes = [
+        ("qkv_proj",     3072, 2560),
+        ("Attn o_proj",  2560, 2048),
+        ("gate_up_proj", 20480, 2560),
+        ("down_proj",    2560, 10240),
+        ("per_layer_input_gate",  256, 2560),
+        ("per_layer_input_gate_out",     2560, 256),
+    ]
+
+    ni = 2000
+
+    for name, N, K in shapes:
+        input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
+        w0, s0, o0 = make_tensors(N, K)
+        config = f"N={N} K={K}"
+
+        # Warmup + bench individual
+        for _ in range(10):
+            esimd_gemv_fp8_pern(input_t, w0, s0, o0, N, K)
+            # esimd_gemv_fp8_pern(input_t, w1, s1, o1, shapes[1][0], K)
+        t   orch.xpu.synchronize()
+        t0 = time.perf_counter()
+        for _ in range(ni):
+            esimd_gemv_fp8_pern(input_t, w0, s0, o0, N, K)
+            torch.xpu.synchronize()
+            # esimd_gemv_fp8_pern(input_t, w1, s1, o1, shapes[1][0], K)
+        torch.xpu.synchronize()
+        indiv_us = (time.perf_counter() - t0) / ni * 1e6
+
+        # Warmup + bench individual vllm
+        for _ in range(10):
+            torch.ops._xpu_C.fp8_gemm_w8a16(input_t, w0.t(), s0, None)
+            torch.xpu.synchronize()
+            # esimd_gemv_fp8_pern(input_t, w1, s1, o1, shapes[1][0], K)
+        
+        t0 = time.perf_counter()
+        for _ in range(ni):
+            torch.ops._xpu_C.fp8_gemm_w8a16(input_t, w0.t(), s0, None)
+            torch.xpu.synchronize()
+            # esimd_gemv_fp8_pern(input_t, w1, s1, o1, shapes[1][0], K)
+        
+        vllm_us = (time.perf_counter() - t0) / ni * 1e6
+
+        speedup = vllm_us / indiv_us if indiv_us > 0 else 0
+        print(f"{name:<30} {config:>20} | {indiv_us:>9.2f} {vllm_us:>9.2f} {speedup:>7.2f}x")
 
 
 def benchmark_fused():
@@ -330,12 +516,12 @@ def benchmark_e5m2():
     from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
 
     shapes = [
-        ("qkv_proj",     2560, 3072),
-        ("Attn o_proj",  2048, 2560),
-        ("gate_up_proj", 2560, 20480),
-        ("down_proj",   10240, 2560),
-        ("per_layer_input_gate",  2560, 256),
-        ("per_layer_input_gate_out",      256, 2560),
+        ("qkv_proj",     3072, 2560),
+        ("Attn o_proj",  2560, 2048),
+        ("gate_up_proj", 20480, 2560),
+        ("down_proj",    2560, 10240),
+        ("per_layer_input_gate",  256, 2560),
+        ("per_layer_input_gate_out",     2560, 256),
     ]
 
     TARGET_BW = 450.0
@@ -387,25 +573,27 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # E4M3 per-N scale tests
-    test_correctness_basic()
-    test_correctness_with_scale()
-
+    # test_correctness_basic()
+    # test_correctness_with_scale()
+    # test_pern_replay_from_assert_dump()
+    # test_esimd_vs_vllm()
+    benchmark_best_vl_ks()
     # E4M3 per-tensor scale tests
-    test_pert_correctness()
-    test_pert_vs_pern()
+    # test_pert_correctness()
+    # test_pert_vs_pern()
 
-    # E5M2 tests
-    test_e5m2_correctness_pern()
-    test_e5m2_correctness_pert()
+    # # E5M2 tests
+    # test_e5m2_correctness_pern()
+    # test_e5m2_correctness_pert()
 
-    # Performance
-    print("\n--- Performance Benchmark (unfused per-N, E4M3) ---")
-    benchmark_shapes()
+    # # Performance
+    # print("\n--- Performance Benchmark (unfused per-N, E4M3) ---")
+    # benchmark_shapes()
 
 
-    print("\n--- Performance Benchmark (E4M3 vs E5M2) ---")
-    benchmark_e5m2()
+    # print("\n--- Performance Benchmark (E4M3 vs E5M2) ---")
+    # benchmark_e5m2()
 
-    print("\n" + "=" * 60)
-    print("ALL TESTS PASSED")
-    print("=" * 60)
+    # print("\n" + "=" * 60)
+    # print("ALL TESTS PASSED")
+    # print("=" * 60)

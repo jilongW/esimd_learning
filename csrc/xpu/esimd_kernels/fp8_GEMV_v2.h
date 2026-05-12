@@ -91,18 +91,21 @@ struct GEMV_fp8_pern_kernel {
 
 // VL/K_SPLIT auto-selection helper (shared by all dispatchers)
 inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
+    // printf("Selecting VL/KS for N=%u K=%u\n", N, K);
     vl = 512; ks = 1;
 
     if (K < 512) {
-        vl = 128; ks = 1;
+        vl = 128; ks = 2;
     } else if (K == 512) {
-        vl = 256; ks = 1;
+        vl = 256; ks = 2;
     }
 
-    if (N <= 128 && K >= 2048) {
-        vl = 128; ks = 8;
-    } else if (N <= 512 && K >= 2048) {
-        vl = 128; ks = 4;
+    if ( N > 2560 && K >= 2048){
+        vl = 512; ks = 1;
+    }else if (N > 1280 && K >= 2048) {
+        vl = 512; ks = 2;
+    }else if (N >= 256 && K >= 2048) {
+        vl = 256; ks = 2;
     }
 
     int kpt = K / ks;
@@ -126,15 +129,14 @@ inline void GEMV_fp8_pern_host(
     uint32_t N,
     uint32_t K,
     int fp8_mode,
+    int vl,
+    int ks,
     sycl::queue& q) {
 
     auto* p_in  = reinterpret_cast<const fp16*>(input_data);
     auto* p_w   = reinterpret_cast<const uint8_t*>(weight_data);
     auto* p_sc  = reinterpret_cast<const fp16*>(scale_data);
     auto* p_out = reinterpret_cast<fp16*>(output_data);
-
-    int vl, ks;
-    select_vl_ks(N, K, vl, ks);
 
     int global = N * ks;
     int local  = ks;
@@ -144,7 +146,8 @@ inline void GEMV_fp8_pern_host(
             h.parallel_for(sycl::nd_range<1>(global, local), \
                 GEMV_fp8_pern_kernel<V, S>{p_in, p_w, p_sc, p_out, (int)N, (int)K, fp8_mode}); \
         });
-
+    // printf("Launching fused pern kernel with VL=%d KS=%d\n", vl, ks);
+    
     if (vl == 512 && ks == 1) { LAUNCH(512, 1) }
     else if (vl == 512 && ks == 2) { LAUNCH(512, 2) }
     else if (vl == 256 && ks == 1) { LAUNCH(256, 1) }
@@ -267,7 +270,7 @@ inline void GEMV_fp8_pern_fused_host(
             } \
             h.parallel_for(sycl::nd_range<1>(global, local), kern); \
         });
-
+    
     if (vl == 512 && ks == 1) { LAUNCH_FUSED(512, 1) }
     else if (vl == 512 && ks == 2) { LAUNCH_FUSED(512, 2) }
     else if (vl == 256 && ks == 1) { LAUNCH_FUSED(256, 1) }
@@ -483,7 +486,6 @@ inline void GEMV_fp8_pert_fused_host(
             } \
             h.parallel_for(sycl::nd_range<1>(global, local), kern); \
         });
-
     if (vl == 512 && ks == 1) { LAUNCH_PERT_FUSED(512, 1) }
     else if (vl == 512 && ks == 2) { LAUNCH_PERT_FUSED(512, 2) }
     else if (vl == 256 && ks == 1) { LAUNCH_PERT_FUSED(256, 1) }

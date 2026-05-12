@@ -14,7 +14,7 @@ os.environ.setdefault("TORCH_XPU_ARCH_LIST", "ptl-h")
 
 import torch
 torch_include = str(Path(torch.__file__).parent / "include")
-
+DEVICE_TARGET = "ptl-h"
 ext_modules = [
     SyclExtension(
         name="custom_esimd_kernels_vllm.custom_esimd_kernels",
@@ -29,6 +29,8 @@ ext_modules = [
         extra_compile_args={
             "cxx": ["-O3", "-std=c++17"],
             "sycl": ["-ffast-math", "-fsycl-device-code-split=per_kernel",
+                     "-fsycl-targets=spir64_gen",
+                     "-Xs", "-device ptl-h",
                      f"-I{torch_include}"],
         },
         extra_link_args=["-Wl,-rpath,$ORIGIN/../../torch/lib"],

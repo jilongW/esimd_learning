@@ -21,11 +21,17 @@ static inline sycl::queue& get_device_queue(const at::Tensor& tensor) {
 at::Tensor esimd_gemv_fp8_pern(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
     at::Tensor output,
-    int64_t N, int64_t K) {
+    int64_t N, int64_t K,
+    int64_t vl, int64_t ks) {
     EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
     EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
     auto& dpcpp_queue = get_device_queue(input);
-    GEMV_fp8_pern_host(p_in, p_w, p_sc, p_out, N, K, get_fp8_mode(weight), dpcpp_queue);
+    int launch_vl = static_cast<int>(vl);
+    int launch_ks = static_cast<int>(ks);
+    if (launch_vl <= 0 || launch_ks <= 0) {
+        select_vl_ks(N, K, launch_vl, launch_ks);
+    }
+    GEMV_fp8_pern_host(p_in, p_w, p_sc, p_out, N, K, get_fp8_mode(weight), launch_vl, launch_ks, dpcpp_queue);
     return output;
 }
 
