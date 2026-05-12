@@ -118,7 +118,9 @@ def benchmark_shapes():
 
     shapes = [
         ("qkv_proj",     3072, 2560),
+        ("qkv_proj",     6144, 2560),
         ("Attn o_proj",  2560, 2048),
+        ("Attn o_proj",  2560, 4096),
         ("gate_up_proj", 20480, 2560),
         ("down_proj",    2560, 10240),
         ("per_layer_input_gate",  256, 2560),
@@ -209,23 +211,23 @@ def test_esimd_vs_vllm():
         # Warmup + bench individual
         for _ in range(10):
             esimd_gemv_fp8_pern(input_t, w0, s0, o0, N, K)
-        torch.xpu.synchronize()
+            torch.xpu.synchronize()
         t0 = time.perf_counter()
         for _ in range(ni):
             o = torch.zeros(1, N, dtype=torch.float16, device=device)
             esimd_gemv_fp8_pern(input_t, w0, s0, o0, N, K)
-        torch.xpu.synchronize()
+            torch.xpu.synchronize()
         indiv_us = (time.perf_counter() - t0) / ni * 1e6
 
         # Warmup + bench individual vllm
         for _ in range(10):
             torch.ops._xpu_C.fp8_gemm_w8a16(input_t, w0.t(), s0, None)
-        torch.xpu.synchronize()
+            torch.xpu.synchronize()
         
         t0 = time.perf_counter()
         for _ in range(ni):
             torch.ops._xpu_C.fp8_gemm_w8a16(input_t, w0.t(), s0, None)
-        torch.xpu.synchronize()
+            torch.xpu.synchronize()
         
         vllm_us = (time.perf_counter() - t0) / ni * 1e6
 
