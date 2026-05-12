@@ -179,7 +179,9 @@ def benchmark_best_vl_ks():
 
     shapes = [
         ("qkv_proj", 3072, 2560),
+        ("qkv_proj", 6144, 2560),
         ("Attn o_proj", 2560, 2048),
+        ("Attn o_proj", 2560, 4096),
         ("gate_up_proj", 20480, 2560),
         ("down_proj", 2560, 10240),
         ("per_layer_input_gate", 256, 2560),
