@@ -219,12 +219,12 @@ def benchmark_best_vl_ks():
         ]
 
         for _ in range(10):
-            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K)
+            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=0, ks=0)
         torch.xpu.synchronize()
 
         t0 = time.perf_counter()
         for _ in range(ni):
-            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K)
+            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=0, ks=0)
         torch.xpu.synchronize()
         auto_us = (time.perf_counter() - t0) / ni * 1e6
 
@@ -234,12 +234,12 @@ def benchmark_best_vl_ks():
         for vl, ks in valid_candidates:
             for _ in range(10):
                 esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
-                torch.xpu.synchronize()
+            torch.xpu.synchronize()
 
             t0 = time.perf_counter()
             for _ in range(ni):
                 esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
-                torch.xpu.synchronize()
+            torch.xpu.synchronize()
             tuned_us = (time.perf_counter() - t0) / ni * 1e6
 
             if tuned_us < best_us:
@@ -286,7 +286,7 @@ def test_esimd_vs_vllm():
         for _ in range(10):
             esimd_gemv_fp8_pern(input_t, w0, s0, o0, N, K)
             # esimd_gemv_fp8_pern(input_t, w1, s1, o1, shapes[1][0], K)
-        t   orch.xpu.synchronize()
+            torch.xpu.synchronize()
         t0 = time.perf_counter()
         for _ in range(ni):
             esimd_gemv_fp8_pern(input_t, w0, s0, o0, N, K)
