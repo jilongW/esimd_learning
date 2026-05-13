@@ -177,6 +177,13 @@ def benchmark_best_vl_ks():
     """Search the best vl/ks configuration for each benchmark shape."""
     from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
 
+    def check_output(output, ref):
+        max_diff = (output.float() - ref.float()).abs().max().item()
+        ref_max = ref.float().abs().max().item()
+        rel_err = (max_diff / ref_max) if ref_max > 1e-6 else 0.0
+        ok = max_diff < 0.5 or rel_err < 0.05
+        return ok, max_diff, rel_err
+
     shapes = [
         ("qkv_proj", 3072, 2560),
         ("qkv_proj", 6144, 2560),
@@ -213,9 +220,10 @@ def benchmark_best_vl_ks():
         scale = torch.randn(N, dtype=torch.float16, device=device) * 0.1
         input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
         output = torch.zeros(1, N, dtype=torch.float16, device=device)
+        ref = (input_t.float() @ weight_fp8.to(torch.float16).float().T) * scale.float().unsqueeze(0)
 
         total_bytes = K * 2 + N * K + N * 2 + N * 2
-        ni = 4000 
+        ni = 1000 
         valid_candidates = [
             (vl, ks)
             for vl, ks in candidates
@@ -223,12 +231,18 @@ def benchmark_best_vl_ks():
         ]
 
         for _ in range(10):
-            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=0, ks=0)
+            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=128, ks=1)
         torch.xpu.synchronize()
+
+        auto_ok, auto_max_diff, auto_rel_err = check_output(output, ref)
+        assert auto_ok, (
+            f"Auto config correctness failed for {name} N={N}, K={K}: "
+            f"max_diff={auto_max_diff:.4f}, rel_err={auto_rel_err:.4f}"
+        )
 
         t0 = time.perf_counter()
         for _ in range(ni):
-            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=0, ks=0)
+            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=128, ks=1)
         torch.xpu.synchronize()
         auto_us = (time.perf_counter() - t0) / ni * 1e6
 
@@ -240,16 +254,27 @@ def benchmark_best_vl_ks():
                 esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
             torch.xpu.synchronize()
 
+            tuned_ok, tuned_max_diff, tuned_rel_err = check_output(output, ref)
+            if not tuned_ok:
+                print(
+                    f"skip incorrect config for {name}: vl={vl}, ks={ks}, "
+                    f"max_diff={tuned_max_diff:.4f}, rel={tuned_rel_err:.4f}"
+                )
+                continue
+
             t0 = time.perf_counter()
             for _ in range(ni):
                 esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
             torch.xpu.synchronize()
             tuned_us = (time.perf_counter() - t0) / ni * 1e6
-
+            print(f"  {name:<30} N={N:5d} K={K:5d} vl={vl} ks={ks} -> {tuned_us:.2f} us (128:1 {auto_us:.2f} us)")
             if tuned_us < best_us:
                 best_us = tuned_us
                 best_vl = vl
                 best_ks = ks
+
+        if best_us == float("inf"):
+            best_us = auto_us
 
         speedup = auto_us / best_us if best_us > 0 else 0.0
         print(f"{name:<30} {N:>6} {K:>6} | {best_vl:>3}/{best_ks:<5} {auto_us:>9.2f} {best_us:>9.2f} {speedup:>7.2f}x")

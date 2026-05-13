@@ -150,14 +150,22 @@ inline void GEMV_fp8_pern_host(
     
     if (vl == 512 && ks == 1) { LAUNCH(512, 1) }
     else if (vl == 512 && ks == 2) { LAUNCH(512, 2) }
+    else if (vl == 512 && ks == 5) { LAUNCH(512, 5) }
     else if (vl == 256 && ks == 1) { LAUNCH(256, 1) }
     else if (vl == 256 && ks == 2) { LAUNCH(256, 2) }
     else if (vl == 256 && ks == 4) { LAUNCH(256, 4) }
+    else if (vl == 256 && ks == 5) { LAUNCH(256, 5) }
+    else if (vl == 256 && ks == 10) { LAUNCH(256, 10) }
     else if (vl == 128 && ks == 1) { LAUNCH(128, 1) }
     else if (vl == 128 && ks == 2) { LAUNCH(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH(128, 4) }
+    else if (vl == 128 && ks == 5) { LAUNCH(128, 5) }
     else if (vl == 128 && ks == 8) { LAUNCH(128, 8) }
+    else if (vl == 128 && ks == 10) { LAUNCH(128, 10) }
+    else if (vl == 64 && ks == 10) { LAUNCH(64, 10) }
+    else if (vl == 64 && ks == 5) { LAUNCH(64, 5) }
     else { LAUNCH(128, 1) }
+
 
     #undef LAUNCH
 }
