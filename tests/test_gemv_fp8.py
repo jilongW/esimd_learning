@@ -210,28 +210,16 @@ def benchmark_best_vl_ks():
         (512, 2),
         (640, 2),
         (1024, 2),
-        (1280, 2),
         (128, 4),
         (256, 4),
         (320, 4),
         (512, 4),
-        (640, 4),
-        (1024, 4),
-        (1280, 4),
         (128, 5),
         (256, 5),
-        (512, 5),
-        (1024, 5),
         (128, 8),
         (256, 8),
-        (320, 8),
-        (512, 8),
-        (640, 8),
-        (1280, 8),
         (128, 10),
-        (256, 10),
-        (512, 10),
-        (1024, 10),
+        
     ]
 
     print(f"\n{'Shape':<30} {'N':>6} {'K':>6} | {'Best':>9} {'Auto us':>10} {'Best us':>10} {'Speedup':>8}")
@@ -246,7 +234,7 @@ def benchmark_best_vl_ks():
         ref = (input_t.float() @ weight_fp8.to(torch.float16).float().T) * scale.float().unsqueeze(0)
 
         total_bytes = K * 2 + N * K + N * 2 + N * 2
-        ni = 4000 
+        ni = 1000 
         valid_candidates = [
             (vl, ks)
             for vl, ks in candidates
@@ -314,7 +302,7 @@ def benchmark_best_vl_ks():
                     )
             torch.xpu.synchronize()
             tuned_us = (time.perf_counter() - t0) / ni * 1e6
-            #print(f"  {name:<30} N={N:5d} K={K:5d} vl={vl} ks={ks} -> {tuned_us:.2f} us (128:1 {auto_us:.2f} us)")
+            print(f"  {name:<30} N={N:5d} K={K:5d} vl={vl} ks={ks} -> {tuned_us:.2f} us (128:1 {auto_us:.2f} us)")
             if tuned_us < best_us:
                 best_us = tuned_us
                 best_vl = vl
