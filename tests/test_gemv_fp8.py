@@ -245,7 +245,7 @@ def benchmark_best_vl_ks():
             esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=128, ks=1)
             probe_idx = _ % 256
             probe_val = output[0, probe_idx]
-            if torch.isinf(probe_val):
+            if torch.isnan(output).any().item():
                 raise AssertionError(
                     f"output[{probe_idx}] is inf at iter={_}, N={N}, K={K}, value={probe_val.item()}"
                 )
@@ -277,7 +277,7 @@ def benchmark_best_vl_ks():
                 esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
                 probe_idx = _ % 256
                 probe_val = output[0, probe_idx]
-                if torch.isinf(probe_val):
+                if torch.isnan(output).any().item():
                     raise AssertionError(
                         f"output[{probe_idx}] is inf at iter={_}, N={N}, K={K}, value={probe_val.item()}"
                     )
@@ -285,10 +285,10 @@ def benchmark_best_vl_ks():
 
             tuned_ok, tuned_max_diff, tuned_rel_err = check_output(output, ref)
             if not tuned_ok:
-                # print(
-                #     f"skip incorrect config for {name}: vl={vl}, ks={ks}, "
-                #     f"max_diff={tuned_max_diff:.4f}, rel={tuned_rel_err:.4f}"
-                # )
+                print(
+                    f"skip incorrect config for {name}: vl={vl}, ks={ks}, "
+                    f"max_diff={tuned_max_diff:.4f}, rel={tuned_rel_err:.4f}"
+                )
                 continue
 
             t0 = time.perf_counter()
