@@ -148,13 +148,34 @@ inline void GEMV_fp8_pern_host(
         });
     // printf("Launching fused pern kernel with VL=%d KS=%d\n", vl, ks);
     
-    if (vl == 512 && ks == 1) { LAUNCH(512, 1) }
+    if (vl == 1280 && ks == 1) { LAUNCH(1280, 1) }
+    else if (vl == 1280 && ks == 2) { LAUNCH(1280, 2) }
+    else if (vl == 1280 && ks == 4) { LAUNCH(1280, 4) }
+    else if (vl == 1280 && ks == 8) { LAUNCH(1280, 8) }
+    else if (vl == 1024 && ks == 1) { LAUNCH(1024, 1) }
+    else if (vl == 1024 && ks == 2) { LAUNCH(1024, 2) }
+    else if (vl == 1024 && ks == 4) { LAUNCH(1024, 4) }
+    else if (vl == 1024 && ks == 5) { LAUNCH(1024, 5) }
+    else if (vl == 1024 && ks == 10) { LAUNCH(1024, 10) }
+    else if (vl == 640 && ks == 1) { LAUNCH(640, 1) }
+    else if (vl == 640 && ks == 2) { LAUNCH(640, 2) }
+    else if (vl == 640 && ks == 4) { LAUNCH(640, 4) }
+    else if (vl == 640 && ks == 8) { LAUNCH(640, 8) }
+    else if (vl == 512 && ks == 1) { LAUNCH(512, 1) }
     else if (vl == 512 && ks == 2) { LAUNCH(512, 2) }
+    else if (vl == 512 && ks == 4) { LAUNCH(512, 4) }
     else if (vl == 512 && ks == 5) { LAUNCH(512, 5) }
+    else if (vl == 512 && ks == 8) { LAUNCH(512, 8) }
+    else if (vl == 512 && ks == 10) { LAUNCH(512, 10) }
+    else if (vl == 320 && ks == 1) { LAUNCH(320, 1) }
+    else if (vl == 320 && ks == 2) { LAUNCH(320, 2) }
+    else if (vl == 320 && ks == 4) { LAUNCH(320, 4) }
+    else if (vl == 320 && ks == 8) { LAUNCH(320, 8) }
     else if (vl == 256 && ks == 1) { LAUNCH(256, 1) }
     else if (vl == 256 && ks == 2) { LAUNCH(256, 2) }
     else if (vl == 256 && ks == 4) { LAUNCH(256, 4) }
     else if (vl == 256 && ks == 5) { LAUNCH(256, 5) }
+    else if (vl == 256 && ks == 8) { LAUNCH(256, 8) }
     else if (vl == 256 && ks == 10) { LAUNCH(256, 10) }
     else if (vl == 128 && ks == 1) { LAUNCH(128, 1) }
     else if (vl == 128 && ks == 2) { LAUNCH(128, 2) }
