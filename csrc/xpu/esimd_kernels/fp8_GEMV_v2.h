@@ -104,7 +104,9 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
         vl = 128; ks = 8;
     } else if (N <= 512 && K >= 2048) {
         vl = 128; ks = 4;
-    } else if (N > 512 && K >= 2560) {
+    } else if (N > 512 && K >= 4096) {
+        vl = 256; ks = 4;
+    } else if (N > 512 && K == 2560) {
         vl = 320; ks = 2;
     } else if (N > 512 && K >= 2048) {
         vl = 256; ks = 8;
