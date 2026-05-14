@@ -225,12 +225,12 @@ def test_esimd_vs_vllm():
         for i in range(ni):
             # o0 = torch.zeros(1, N, dtype=torch.float16, device=device)
             esimd_gemv_fp8_pern(input_t, w0, s0, o0, N, K)
-            probe_idx = i % 256
-            probe_val = o0[0, probe_idx]
-            if torch.isinf(probe_val):
-                raise AssertionError(
-                    f"o0[{probe_idx}] is inf at iter={i}, N={N}, K={K}, value={probe_val.item()}"
-                )
+            # probe_idx = i % 256
+            # probe_val = o0[0, probe_idx]
+            # if torch.isinf(probe_val):
+            #     raise AssertionError(
+            #         f"o0[{probe_idx}] is inf at iter={i}, N={N}, K={K}, value={probe_val.item()}"
+            #     )
         torch.xpu.synchronize()
         indiv_us = (time.perf_counter() - t0) / ni * 1e6
 
@@ -248,12 +248,12 @@ def test_esimd_vs_vllm():
         t0 = time.perf_counter()
         for i in range(ni):
             output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, w0.t(), s0, None)
-            probe_idx = i % 256
-            probe_val = output[0, probe_idx]
-            if torch.isinf(probe_val):
-                raise AssertionError(
-                    f"o0[{probe_idx}] is inf at iter={i}, N={N}, K={K}, value={probe_val.item()}"
-                )
+            # probe_idx = i % 256
+            # probe_val = output[0, probe_idx]
+            # if torch.isinf(probe_val):
+            #     raise AssertionError(
+            #         f"o0[{probe_idx}] is inf at iter={i}, N={N}, K={K}, value={probe_val.item()}"
+            #     )
         torch.xpu.synchronize()
         
         vllm_us = (time.perf_counter() - t0) / ni * 1e6

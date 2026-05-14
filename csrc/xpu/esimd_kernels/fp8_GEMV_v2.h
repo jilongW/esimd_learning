@@ -94,22 +94,19 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
     // printf("Selecting VL/KS for N=%u K=%u\n", N, K);
     vl = 512; ks = 1;
 
-    if (K <= 256) {
-        vl = 256; ks = 1;
+    if (K < 512) {
+        vl = 128; ks = 2;
     } else if (K == 512) {
         vl = 256; ks = 2;
     }
-
-    if (N <= 128 && K >= 2048) {
-        vl = 128; ks = 8;
-    } else if (N <= 512 && K >= 2048) {
+    if (K >= 8192) {
+        vl = 512; ks = 2;
+    }else if (K >= 4096 && N>= 2048) {
+        vl = 256; ks = 2;
+    }else if (K >= 2048 && N >= 8192) {
         vl = 128; ks = 4;
-    } else if (N > 512 && K >= 4096) {
-        vl = 256; ks = 4;
-    } else if (N > 512 && K == 2560) {
-        vl = 320; ks = 2;
-    } else if (N > 512 && K >= 2048) {
-        vl = 256; ks = 8;
+    }else if (K >= 2048 && N >= 2048) {
+        vl = 256; ks = 1;
     }
 
     int kpt = K / ks;
@@ -142,6 +139,7 @@ inline void GEMV_fp8_pern_host(
 
     int vl, ks;
     select_vl_ks(N, K, vl, ks);
+
     int global = N * ks;
     int local  = ks;
 
@@ -150,15 +148,12 @@ inline void GEMV_fp8_pern_host(
             h.parallel_for(sycl::nd_range<1>(global, local), \
                 GEMV_fp8_pern_kernel<V, S>{p_in, p_w, p_sc, p_out, (int)N, (int)K, fp8_mode}); \
         });
-    // printf("Launching fused pern kernel with VL=%d KS=%d\n", vl, ks);
-    
+
     if (vl == 512 && ks == 1) { LAUNCH(512, 1) }
     else if (vl == 512 && ks == 2) { LAUNCH(512, 2) }
-    else if (vl == 320 && ks == 2) { LAUNCH(320, 2) }
     else if (vl == 256 && ks == 1) { LAUNCH(256, 1) }
     else if (vl == 256 && ks == 2) { LAUNCH(256, 2) }
     else if (vl == 256 && ks == 4) { LAUNCH(256, 4) }
-    else if (vl == 256 && ks == 8) { LAUNCH(256, 8) }
     else if (vl == 128 && ks == 1) { LAUNCH(128, 1) }
     else if (vl == 128 && ks == 2) { LAUNCH(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH(128, 4) }

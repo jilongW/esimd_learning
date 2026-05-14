@@ -30,7 +30,6 @@ ext_modules = [
             "cxx": ["-O3", "-std=c++17"],
             "sycl": ["-ffast-math", "-fsycl-device-code-split=per_kernel",
                      "-fsycl-targets=spir64_gen",
-                     "-Xs", "-device ptl-h",
                      f"-I{torch_include}"],
         },
         extra_link_args=["-Wl,-rpath,$ORIGIN/../../torch/lib"],
