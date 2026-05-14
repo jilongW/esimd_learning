@@ -203,7 +203,7 @@ def test_esimd_vs_vllm():
         ("per_layer_input_gate_out",     2560, 256),    
     ]
 
-    ni = 1
+    ni = 1000
 
     for name, N, K in shapes:
         input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
@@ -293,7 +293,7 @@ def benchmark_fused():
         ("Sh gate+up",   [(128, 2048), (128, 2048)]),
     ]
 
-    ni = 2000
+    ni = 1000
 
     for name, shapes in cases_fused2:
         K = shapes[0][1]
