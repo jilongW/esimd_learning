@@ -37,6 +37,30 @@ ext_modules = [
     )
 ]
 
+### FP8 GEMM (M>1) — uses DPAS, compile with JIT only (no AOT to avoid device mismatch)
+ext_modules.append(
+    SyclExtension(
+        name="custom_esimd_kernels_vllm.custom_esimd_kernels_gemm",
+        sources=[
+            "csrc/xpu/esimd_kernel_gemm.sycl",
+            "csrc/xpu/torch_extension_gemm.cc",
+        ],
+        include_dirs=[
+            root / "include",
+            root / "csrc",
+        ],
+        extra_compile_args={
+            "cxx": ["-O3", "-std=c++17"],
+            "sycl": ["-fsycl", "-ffast-math", "-fsycl-device-code-split=per_kernel",
+                     "-fsycl-targets=spir64_gen", "-Xs", "-device ptl",
+                     f"-I{torch_include}"],
+        },
+        extra_link_args=["-Wl,-rpath,$ORIGIN/../../torch/lib"],
+        py_limited_api=False,
+    )
+)
+### FP8 GEMM kernels
+
 setup(
     name="custom-esimd-kernels-vllm",
     version="0.1.0",

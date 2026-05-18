@@ -28,3 +28,33 @@ def esimd_gemv_fp8_pert(
     N and K are inferred from weight shape.
     """
     return _ops.esimd_gemv_fp8_pert(input, weight, weight_scale, output)
+
+def esimd_fused_add_rms_norm_batched(
+    hidden_states: torch.Tensor,
+    residual: torch.Tensor,
+    weight: torch.Tensor,
+    eps: float,
+) -> torch.Tensor:
+    """Batched fused residual add + RMSNorm (Gemma-style).
+
+    residual[i] = hidden_states[i] + residual[i]  (in-place)
+    hidden_states[i] = rmsnorm(residual[i]) * weight  (output)
+    weight must be pre-adjusted (w+1.0). Works for any number of rows.
+    """
+    return _ops.esimd_fused_add_rms_norm_batched(hidden_states, residual, weight, eps)
+
+
+def esimd_gemm_fp8_pert(
+    input: torch.Tensor, weight: torch.Tensor, weight_scale: torch.Tensor,
+    output: torch.Tensor,
+) -> torch.Tensor:
+    """FP8 GEMM with per-tensor scale — handles any M (auto-dispatches).
+
+    input:  [M, K] fp16, weight: [N, K] fp8, scale: fp32 scalar, output: [M, N] fp16.
+    N and K are inferred from weight shape. M from input shape.
+
+    Auto-dispatch:
+      M=1-3  → batched GEMV (BW-bound, K-split SLM reduction)
+      M>=2   → DPAS V9 (E4M3, K%64==0) or DPAS V7 (E5M2) or WS fallback
+    """
+    return _ops.esimd_gemm_fp8_pert(input, weight, weight_scale, output)

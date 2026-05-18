@@ -35,7 +35,7 @@ source ~/downstream/bin/activate
 
 ```bash
 cd /home/edgeai/esimd_learning
-pip install -e . --no-build-isolation
+TORCH_XPU_ARCH_LIST=ptl pip install -e . --no-build-isolation
 ```
 ## 怎么运行测试
 
