@@ -241,15 +241,20 @@ def benchmark_best_vl_ks():
             if K % ks == 0 and (K // ks) >= vl and (K // ks) % vl == 0
         ]
 
-        for _ in range(10):
-            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=128, ks=1)
-            probe_idx = _ % 256
-            probe_val = output[0, probe_idx]
-            if torch.isnan(output).any().item():
-                raise AssertionError(
-                    f"output[{probe_idx}] is inf at iter={_}, N={N}, K={K}, value={probe_val.item()}"
-                )
+        # Cache-bust: create multiple weight copies
+        wb = N * K
+        target_mem = 32 * 1024 * 1024
+        nc = max(16, target_mem // max(wb, 1))
+        nc = min(nc, 512)
+
+        weights = [weight_fp8]
+        for i in range(1, nc):
+            w = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
+            weights.append(w.to(torch.float8_e4m3fn))
+
+        esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=128, ks=1)
         torch.xpu.synchronize()
+        
 
         auto_ok, auto_max_diff, auto_rel_err = check_output(output, ref)
         assert auto_ok, (
@@ -257,15 +262,25 @@ def benchmark_best_vl_ks():
             f"max_diff={auto_max_diff:.4f}, rel_err={auto_rel_err:.4f}"
         )
 
+        for _ in range(10):
+            esimd_gemv_fp8_pern(input_t, weights[_ % nc], scale, output, N, K, vl=128, ks=1)
+            # probe_idx = _ % 256
+            # probe_val = output[0, probe_idx]
+            # if torch.isnan(output).any().item():
+            #     raise AssertionError(
+            #         f"output[{probe_idx}] is inf at iter={_}, N={N}, K={K}, value={probe_val.item()}"
+            #     )
+        torch.xpu.synchronize()
+
         t0 = time.perf_counter()
-        for _ in range(ni):
-            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=128, ks=1)
-            probe_idx = _ % 256
-            probe_val = output[0, probe_idx]
-            if torch.isinf(probe_val):
-                raise AssertionError(
-                    f"output[{probe_idx}] is inf at iter={_}, N={N}, K={K}, value={probe_val.item()}"
-                )
+        for i in range(ni):
+            esimd_gemv_fp8_pern(input_t, weights[i % nc], scale, output, N, K, vl=128, ks=1)
+            # probe_idx = _ % 256
+            # probe_val = output[0, probe_idx]
+            # if torch.isinf(probe_val):
+            #     raise AssertionError(
+            #         f"output[{probe_idx}] is inf at iter={_}, N={N}, K={K}, value={probe_val.item()}"
+            #     )
         torch.xpu.synchronize()
         auto_us = (time.perf_counter() - t0) / ni * 1e6
 
@@ -273,15 +288,9 @@ def benchmark_best_vl_ks():
         best_ks = 0
         best_us = float("inf")
         for vl, ks in valid_candidates:
-            for _ in range(10):
-                esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
-                probe_idx = _ % 256
-                probe_val = output[0, probe_idx]
-                if torch.isnan(output).any().item():
-                    raise AssertionError(
-                        f"output[{probe_idx}] is inf at iter={_}, N={N}, K={K}, value={probe_val.item()}"
-                    )
+            esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
             torch.xpu.synchronize()
+            
 
             tuned_ok, tuned_max_diff, tuned_rel_err = check_output(output, ref)
             if not tuned_ok:
@@ -291,18 +300,28 @@ def benchmark_best_vl_ks():
                 )
                 continue
 
-            t0 = time.perf_counter()
-            for _ in range(ni):
-                esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
+            for _ in range(10):
+                esimd_gemv_fp8_pern(input_t, weights[_ % nc], scale, output, N, K, vl=vl, ks=ks)
                 probe_idx = _ % 256
                 probe_val = output[0, probe_idx]
-                if torch.isinf(probe_val):
+                if torch.isnan(output).any().item():
                     raise AssertionError(
                         f"output[{probe_idx}] is inf at iter={_}, N={N}, K={K}, value={probe_val.item()}"
                     )
             torch.xpu.synchronize()
+
+            t0 = time.perf_counter()
+            for i in range(ni):
+                esimd_gemv_fp8_pern(input_t, weights[i % nc], scale, output, N, K, vl=vl, ks=ks)
+                # probe_idx = i % 256
+                # probe_val = output[0, probe_idx]
+                # if torch.isinf(probe_val):
+                #     raise AssertionError(
+                #         f"output[{probe_idx}] is inf at iter={i}, N={N}, K={K}, value={probe_val.item()}"
+                #     )
+            torch.xpu.synchronize()
             tuned_us = (time.perf_counter() - t0) / ni * 1e6
-            print(f"  {name:<30} N={N:5d} K={K:5d} vl={vl} ks={ks} -> {tuned_us:.2f} us (128:1 {auto_us:.2f} us)")
+            # print(f"  {name:<30} N={N:5d} K={K:5d} vl={vl} ks={ks} -> {tuned_us:.2f} us (128:1 {auto_us:.2f} us)")
             if tuned_us < best_us:
                 best_us = tuned_us
                 best_vl = vl

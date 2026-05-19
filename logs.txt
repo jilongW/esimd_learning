@@ -1,0 +1,1208 @@
+Using pip 26.1.1 from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip (python 3.12)
+Obtaining file:///home/edgeai/esimd_learning
+  Checking if build backend supports build_editable: started
+  Running command Checking if build backend supports build_editable
+  Checking if build backend supports build_editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Running command Preparing editable metadata (pyproject.toml)
+  running dist_info
+  creating /tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info
+  writing /tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info/PKG-INFO
+  writing dependency_links to /tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info/dependency_links.txt
+  writing top-level names to /tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info/top_level.txt
+  writing manifest file '/tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/vcs_versioning/overrides.py:609: UserWarning: No GlobalOverrides context is active. Auto-creating one with SETUPTOOLS_SCM prefix for backwards compatibility. Consider using 'with GlobalOverrides.from_env("YOUR_TOOL"):' explicitly.
+    return get_active_overrides().subprocess_timeout
+  writing manifest file '/tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  creating '/tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm-0.1.0.dist-info'
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: custom-esimd-kernels-vllm
+  Building editable for custom-esimd-kernels-vllm (pyproject.toml): started
+  Running command Building editable for custom-esimd-kernels-vllm (pyproject.toml)
+  running editable_wheel
+  creating /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info
+  writing /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info/PKG-INFO
+  writing dependency_links to /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info/dependency_links.txt
+  writing top-level names to /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info/top_level.txt
+  writing manifest file '/tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/vcs_versioning/overrides.py:609: UserWarning: No GlobalOverrides context is active. Auto-creating one with SETUPTOOLS_SCM prefix for backwards compatibility. Consider using 'with GlobalOverrides.from_env("YOUR_TOOL"):' explicitly.
+    return get_active_overrides().subprocess_timeout
+  writing manifest file '/tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  creating '/tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm-0.1.0.dist-info'
+  creating /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm-0.1.0.dist-info/WHEEL
+  running build_py
+  running build_ext
+  building 'custom_esimd_kernels_vllm.custom_esimd_kernels' extension
+  creating /tmp/tmp8j8rzolm.build-temp/csrc/xpu
+  Emitting ninja build file /tmp/tmp8j8rzolm.build-temp/build.ninja...
+  Compiling objects...
+  Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+  [1/3] c++ -MMD -MF /tmp/tmp8j8rzolm.build-temp/csrc/xpu/torch_extension.o.d -pthread -B /home/edgeai/miniforge3/envs/down/compiler_compat -fno-strict-overflow -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -I/home/edgeai/esimd_learning/include -I/home/edgeai/esimd_learning/csrc -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -I/opt/intel/oneapi/compiler/2025.3/include -I/opt/intel/oneapi/compiler/2025.3/include/sycl -I/home/edgeai/miniforge3/envs/down/include/python3.12 -c -c /home/edgeai/esimd_learning/csrc/xpu/torch_extension.cc -o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/torch_extension.o -O3 -std=c++17 -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE=""' '-DPYBIND11_STDLIB=""' '-DPYBIND11_BUILD_ABI=""' -DTORCH_EXTENSION_NAME=custom_esimd_kernels -D_GLIBCXX_USE_CXX11_ABI=1
+  [2/3] icpx -pthread -B /home/edgeai/miniforge3/envs/down/compiler_compat -fno-strict-overflow -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -I/home/edgeai/esimd_learning/include -I/home/edgeai/esimd_learning/csrc -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -I/opt/intel/oneapi/compiler/2025.3/include -I/opt/intel/oneapi/compiler/2025.3/include/sycl -I/home/edgeai/miniforge3/envs/down/include/python3.12 -c -fsycl -fsycl-targets=spir64_gen,spir64 -std=c++17 -sycl-std=2020 -c -x c++ /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl -o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/esimd_kernel.o -ffast-math -fsycl-device-code-split=per_kernel -fsycl-targets=spir64_gen -Xs '-device ptl-h' -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE=""' '-DPYBIND11_STDLIB=""' '-DPYBIND11_BUILD_ABI=""' -DTORCH_EXTENSION_NAME=custom_esimd_kernels -D_GLIBCXX_USE_CXX11_ABI=1
+  icpx: warning: argument unused during compilation: '-Xs -device ptl-h' [-Wunused-command-line-argument]
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:8:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/Context.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/CPUGeneratorImpl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/Generator.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/GeneratorImpl.h:9:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/TensorImpl.h:12:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/ScalarType.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/BFloat16.h:2:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/util/BFloat16.h:106:7: warning: use of NaN is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+    106 |   if (std::isnan(src)) {
+        |       ^~~~~~~~~~~~~~~
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<unsigned char, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<unsigned char, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:82:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     82 |   _(uint8_t, Byte)                             \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<signed char, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<signed char, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:83:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     83 |   _(int8_t, Char)                              \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<short, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<short, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:84:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     84 |   _(int16_t, Short)                            \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<int, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<int, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:85:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     85 |   _(int, Int)                                  \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<long, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<long, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:86:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     86 |   _(int64_t, Long)                             \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Half, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Half, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:87:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     87 |   _(c10::Half, Half)                           \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<float, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<float, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:88:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     88 |   _(float, Float)                              \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<double, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<double, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:89:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     89 |   _(double, Double)                            \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::complex<Half>, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::complex<Half>, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:90:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     90 |   _(c10::complex<c10::Half>, ComplexHalf)      \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::complex<float>, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::complex<float>, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:91:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     91 |   _(c10::complex<float>, ComplexFloat)         \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::complex<double>, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::complex<double>, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:92:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     92 |   _(c10::complex<double>, ComplexDouble)       \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<bool, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<bool, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:93:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     93 |   _(bool, Bool)                                \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::BFloat16, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::BFloat16, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:94:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     94 |   _(c10::BFloat16, BFloat16)                   \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Float8_e5m2, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Float8_e5m2, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:95:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     95 |   _(c10::Float8_e5m2, Float8_e5m2)             \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Float8_e4m3fn, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Float8_e4m3fn, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:96:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     96 |   _(c10::Float8_e4m3fn, Float8_e4m3fn)         \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Float8_e5m2fnuz, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Float8_e5m2fnuz, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:97:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     97 |   _(c10::Float8_e5m2fnuz, Float8_e5m2fnuz)     \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Float8_e4m3fnuz, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Float8_e4m3fnuz, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:98:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     98 |   _(c10::Float8_e4m3fnuz, Float8_e4m3fnuz)     \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Float8_e8m0fnu, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Float8_e8m0fnu, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:99:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     99 |   _(c10::Float8_e8m0fnu, Float8_e8m0fnu)
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<unsigned short, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:142:3: note: in instantiation of function template specialization 'c10::checked_convert<unsigned short, double>' requested here
+    142 |   DEFINE_ACCESSOR(uint16_t, UInt16)
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<unsigned int, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:143:3: note: in instantiation of function template specialization 'c10::checked_convert<unsigned int, double>' requested here
+    143 |   DEFINE_ACCESSOR(uint32_t, UInt32)
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<unsigned long, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:144:3: note: in instantiation of function template specialization 'c10::checked_convert<unsigned long, double>' requested here
+    144 |   DEFINE_ACCESSOR(uint64_t, UInt64)
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  23 warnings generated.
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:8:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/Context.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/CPUGeneratorImpl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/Generator.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/GeneratorImpl.h:9:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/TensorImpl.h:12:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/ScalarType.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/BFloat16.h:2:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/util/BFloat16.h:106:7: warning: use of NaN is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+    106 |   if (std::isnan(src)) {
+        |       ^~~~~~~~~~~~~~~
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<unsigned char, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<unsigned char, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:82:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     82 |   _(uint8_t, Byte)                             \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<signed char, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<signed char, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:83:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     83 |   _(int8_t, Char)                              \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<short, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<short, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:84:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     84 |   _(int16_t, Short)                            \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<int, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<int, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:85:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     85 |   _(int, Int)                                  \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<long, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<long, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:86:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     86 |   _(int64_t, Long)                             \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Half, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Half, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:87:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     87 |   _(c10::Half, Half)                           \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<float, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<float, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:88:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     88 |   _(float, Float)                              \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<double, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<double, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:89:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     89 |   _(double, Double)                            \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::complex<Half>, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::complex<Half>, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:90:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     90 |   _(c10::complex<c10::Half>, ComplexHalf)      \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::complex<float>, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::complex<float>, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:91:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     91 |   _(c10::complex<float>, ComplexFloat)         \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::complex<double>, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::complex<double>, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:92:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     92 |   _(c10::complex<double>, ComplexDouble)       \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<bool, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<bool, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:93:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     93 |   _(bool, Bool)                                \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::BFloat16, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::BFloat16, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:94:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     94 |   _(c10::BFloat16, BFloat16)                   \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Float8_e5m2, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Float8_e5m2, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:95:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     95 |   _(c10::Float8_e5m2, Float8_e5m2)             \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Float8_e4m3fn, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Float8_e4m3fn, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:96:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     96 |   _(c10::Float8_e4m3fn, Float8_e4m3fn)         \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Float8_e5m2fnuz, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Float8_e5m2fnuz, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:97:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     97 |   _(c10::Float8_e5m2fnuz, Float8_e5m2fnuz)     \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Float8_e4m3fnuz, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Float8_e4m3fnuz, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:98:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     98 |   _(c10::Float8_e4m3fnuz, Float8_e4m3fnuz)     \
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<c10::Float8_e8m0fnu, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:141:39: note: in instantiation of function template specialization 'c10::checked_convert<c10::Float8_e8m0fnu, double>' requested here
+    141 |   AT_FORALL_SCALAR_TYPES_WITH_COMPLEX(DEFINE_ACCESSOR)
+        |                                       ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/headeronly/core/ScalarType.h:99:3: note: expanded from macro 'AT_FORALL_SCALAR_TYPES_WITH_COMPLEX'
+     99 |   _(c10::Float8_e8m0fnu, Float8_e8m0fnu)
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<unsigned short, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:142:3: note: in instantiation of function template specialization 'c10::checked_convert<unsigned short, double>' requested here
+    142 |   DEFINE_ACCESSOR(uint16_t, UInt16)
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<unsigned int, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:143:3: note: in instantiation of function template specialization 'c10::checked_convert<unsigned int, double>' requested here
+    143 |   DEFINE_ACCESSOR(uint32_t, UInt32)
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:10:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/DeviceGuard.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef.h:634:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/IListRef_inl.h:4:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List.h:492:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/List_inl.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/ivalue.h:5:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/core/TensorBody.h:17:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:19:
+  In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:12:
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/overflows.h:66:30: warning: use of infinity is undefined behavior due to the currently enabled floating-point options [-Wnan-infinity-disabled]
+     66 |   if (limit::has_infinity && std::isinf(static_cast<double>(f))) {
+        |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/util/TypeCast.h:201:36: note: in instantiation of function template specialization 'c10::overflows<unsigned long, double>' requested here
+    201 |   if (!std::is_same_v<To, bool> && overflows<To, From>(f)) {
+        |                                    ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:144:3: note: in instantiation of function template specialization 'c10::checked_convert<unsigned long, double>' requested here
+    144 |   DEFINE_ACCESSOR(uint64_t, UInt64)
+        |   ^
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/c10/core/Scalar.h:117:14: note: expanded from macro 'DEFINE_ACCESSOR'
+    117 |       return checked_convert<type, double>(v.d, #type);               \
+        |              ^
+  23 warnings generated.
+  [3/3] icpx /tmp/tmp8j8rzolm.build-temp/csrc/xpu/esimd_kernel.o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/torch_extension.o -o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/sycl_dlink.o -fsycl -fsycl-targets=spir64_gen,spir64 -fsycl-link --offload-compress -Xs "-device ptl"
+  icpx: warning: linked binaries do not contain expected 'spir64-unknown-unknown' target; found targets: 'spir64_gen-unknown-unknown' [-Wsycl-target]
+  Spill memory used = 11200 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi1280ELi1EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 10880 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi1280ELi2EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 10880 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi1280ELi4EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 10880 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi1280ELi8EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 7296 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi1024ELi1EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 7296 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi1024ELi2EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 7296 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi1024ELi4EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 7296 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi1024ELi5EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 7296 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi1024ELi10EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 1600 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi640ELi1EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 1600 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi640ELi2EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 1600 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi640ELi4EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Spill memory used = 1600 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi640ELi8EE
+   Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
+  Compilation from IR - skipping loading of FCL
+  Build succeeded.
+  creating /tmp/tmprujre62i.build-lib/custom_esimd_kernels_vllm
+  g++ -pthread -B /home/edgeai/miniforge3/envs/down/compiler_compat -fno-strict-overflow -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -shared /tmp/tmp8j8rzolm.build-temp/csrc/xpu/esimd_kernel.o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/torch_extension.o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/sycl_dlink.o -L/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/lib -lc10 -lc10_xpu -ltorch -ltorch_cpu -lsycl -ltorch_python -ltorch_xpu -o /tmp/tmprujre62i.build-lib/custom_esimd_kernels_vllm/custom_esimd_kernels.cpython-312-x86_64-linux-gnu.so -Wl,-rpath,$ORIGIN/../../torch/lib
+  /home/edgeai/miniforge3/envs/down/compiler_compat/ld: /tmp/tmp8j8rzolm.build-temp/csrc/xpu/sycl_dlink.o: warning: relocation in read-only section `.rodata'
+  /home/edgeai/miniforge3/envs/down/compiler_compat/ld: warning: creating DT_TEXTREL in a shared object
+  copying /tmp/tmprujre62i.build-lib/custom_esimd_kernels_vllm/custom_esimd_kernels.cpython-312-x86_64-linux-gnu.so -> python/custom_esimd_kernels_vllm
+
+          Editable install will be performed using .pth file to extend `sys.path` with:
+          ['python']
+
+  Options like `package-data`, `include/exclude-package-data` or
+  `packages.find.exclude/include` may have no effect.
+
+  adding '__editable__.custom_esimd_kernels_vllm-0.1.0.pth'
+  creating '/tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm-0.1.0-0.editable-cp312-cp312-linux_x86_64.whl' and adding '/tmp/tmpo6j6r1_pcustom_esimd_kernels_vllm-0.1.0-0.editable-cp312-cp312-linux_x86_64.whl' to it
+  adding 'custom_esimd_kernels_vllm-0.1.0.dist-info/METADATA'
+  adding 'custom_esimd_kernels_vllm-0.1.0.dist-info/WHEEL'
+  adding 'custom_esimd_kernels_vllm-0.1.0.dist-info/top_level.txt'
+  adding 'custom_esimd_kernels_vllm-0.1.0.dist-info/RECORD'
+  Building editable for custom-esimd-kernels-vllm (pyproject.toml): finished with status 'done'
+  Created wheel for custom-esimd-kernels-vllm: filename=custom_esimd_kernels_vllm-0.1.0-0.editable-cp312-cp312-linux_x86_64.whl size=1399 sha256=9875136b7a1f9f900f03074f148ec534279dbea5d28075ee57f0172658b88f3e
+  Stored in directory: /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624
+Successfully built custom-esimd-kernels-vllm
+Installing collected packages: custom-esimd-kernels-vllm
+  Attempting uninstall: custom-esimd-kernels-vllm
+    Found existing installation: custom-esimd-kernels-vllm 0.1.0
+    Uninstalling custom-esimd-kernels-vllm-0.1.0:
+      Removing file or directory /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/__editable__.custom_esimd_kernels_vllm-0.1.0.pth
+      Removing file or directory /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/custom_esimd_kernels_vllm-0.1.0.dist-info/
+      Successfully uninstalled custom-esimd-kernels-vllm-0.1.0
+Successfully installed custom-esimd-kernels-vllm-0.1.0
