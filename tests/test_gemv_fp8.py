@@ -216,14 +216,15 @@ def benchmark_best_vl_ks():
         (512, 4),
         (128, 5),
         (256, 5),
+        (512, 5),
         (128, 8),
         (256, 8),
         (128, 10),
         
     ]
 
-    print(f"\n{'Shape':<30} {'N':>6} {'K':>6} | {'Best':>9} {'Auto us':>10} {'Best us':>10} {'Speedup':>8}")
-    print("-" * 86)
+    print(f"\n{'Shape':<30} {'N':>6} {'K':>6} | {'Best':>18} {'Auto us':>10} {'Best us':>10} {'Speedup':>8}")
+    print("-" * 95)
 
     for name, N, K in shapes:
         weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
@@ -284,9 +285,8 @@ def benchmark_best_vl_ks():
         torch.xpu.synchronize()
         auto_us = (time.perf_counter() - t0) / ni * 1e6
 
-        best_vl = 0
-        best_ks = 0
-        best_us = float("inf")
+        best_configs = [(128, 1)]
+        best_us = auto_us
         for vl, ks in valid_candidates:
             esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
             torch.xpu.synchronize()
@@ -321,17 +321,16 @@ def benchmark_best_vl_ks():
                 #     )
             torch.xpu.synchronize()
             tuned_us = (time.perf_counter() - t0) / ni * 1e6
-            # print(f"  {name:<30} N={N:5d} K={K:5d} vl={vl} ks={ks} -> {tuned_us:.2f} us (128:1 {auto_us:.2f} us)")
+            #print(f"  {name:<30} N={N:5d} K={K:5d} vl={vl} ks={ks} -> {tuned_us:.2f} us (128:1 {auto_us:.2f} us)")
             if tuned_us < best_us:
                 best_us = tuned_us
-                best_vl = vl
-                best_ks = ks
-
-        if best_us == float("inf"):
-            best_us = auto_us
+                best_configs = [(vl, ks)]
+            elif tuned_us == best_us and (vl, ks) not in best_configs:
+                best_configs.append((vl, ks))
 
         speedup = auto_us / best_us if best_us > 0 else 0.0
-        print(f"{name:<30} {N:>6} {K:>6} | {best_vl:>3}/{best_ks:<5} {auto_us:>9.2f} {best_us:>9.2f} {speedup:>7.2f}x")
+        best_str = ", ".join(f"{vl}/{ks}" for vl, ks in best_configs)
+        print(f"{name:<30} {N:>6} {K:>6} | {best_str:>18} {auto_us:>9.2f} {best_us:>9.2f} {speedup:>7.2f}x")
 
 def test_esimd_vs_vllm():
     from custom_esimd_kernels_vllm import (

@@ -6,39 +6,39 @@ Obtaining file:///home/edgeai/esimd_learning
   Preparing editable metadata (pyproject.toml): started
   Running command Preparing editable metadata (pyproject.toml)
   running dist_info
-  creating /tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info
-  writing /tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info/PKG-INFO
-  writing dependency_links to /tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info/dependency_links.txt
-  writing top-level names to /tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info/top_level.txt
-  writing manifest file '/tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  creating /tmp/pip-modern-metadata-rk808rjb/custom_esimd_kernels_vllm.egg-info
+  writing /tmp/pip-modern-metadata-rk808rjb/custom_esimd_kernels_vllm.egg-info/PKG-INFO
+  writing dependency_links to /tmp/pip-modern-metadata-rk808rjb/custom_esimd_kernels_vllm.egg-info/dependency_links.txt
+  writing top-level names to /tmp/pip-modern-metadata-rk808rjb/custom_esimd_kernels_vllm.egg-info/top_level.txt
+  writing manifest file '/tmp/pip-modern-metadata-rk808rjb/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
   /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/vcs_versioning/overrides.py:609: UserWarning: No GlobalOverrides context is active. Auto-creating one with SETUPTOOLS_SCM prefix for backwards compatibility. Consider using 'with GlobalOverrides.from_env("YOUR_TOOL"):' explicitly.
     return get_active_overrides().subprocess_timeout
-  writing manifest file '/tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
-  creating '/tmp/pip-modern-metadata-dfxnezd8/custom_esimd_kernels_vllm-0.1.0.dist-info'
+  writing manifest file '/tmp/pip-modern-metadata-rk808rjb/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  creating '/tmp/pip-modern-metadata-rk808rjb/custom_esimd_kernels_vllm-0.1.0.dist-info'
   Preparing editable metadata (pyproject.toml): finished with status 'done'
 Building wheels for collected packages: custom-esimd-kernels-vllm
   Building editable for custom-esimd-kernels-vllm (pyproject.toml): started
   Running command Building editable for custom-esimd-kernels-vllm (pyproject.toml)
   running editable_wheel
-  creating /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info
-  writing /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info/PKG-INFO
-  writing dependency_links to /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info/dependency_links.txt
-  writing top-level names to /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info/top_level.txt
-  writing manifest file '/tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  creating /tmp/pip-ephem-wheel-cache-iaxt25rt/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpq75wmdtn/.tmp-cdn36djr/custom_esimd_kernels_vllm.egg-info
+  writing /tmp/pip-ephem-wheel-cache-iaxt25rt/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpq75wmdtn/.tmp-cdn36djr/custom_esimd_kernels_vllm.egg-info/PKG-INFO
+  writing dependency_links to /tmp/pip-ephem-wheel-cache-iaxt25rt/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpq75wmdtn/.tmp-cdn36djr/custom_esimd_kernels_vllm.egg-info/dependency_links.txt
+  writing top-level names to /tmp/pip-ephem-wheel-cache-iaxt25rt/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpq75wmdtn/.tmp-cdn36djr/custom_esimd_kernels_vllm.egg-info/top_level.txt
+  writing manifest file '/tmp/pip-ephem-wheel-cache-iaxt25rt/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpq75wmdtn/.tmp-cdn36djr/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
   /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/vcs_versioning/overrides.py:609: UserWarning: No GlobalOverrides context is active. Auto-creating one with SETUPTOOLS_SCM prefix for backwards compatibility. Consider using 'with GlobalOverrides.from_env("YOUR_TOOL"):' explicitly.
     return get_active_overrides().subprocess_timeout
-  writing manifest file '/tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
-  creating '/tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm-0.1.0.dist-info'
-  creating /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm-0.1.0.dist-info/WHEEL
+  writing manifest file '/tmp/pip-ephem-wheel-cache-iaxt25rt/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpq75wmdtn/.tmp-cdn36djr/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  creating '/tmp/pip-ephem-wheel-cache-iaxt25rt/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpq75wmdtn/.tmp-cdn36djr/custom_esimd_kernels_vllm-0.1.0.dist-info'
+  creating /tmp/pip-ephem-wheel-cache-iaxt25rt/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpq75wmdtn/.tmp-cdn36djr/custom_esimd_kernels_vllm-0.1.0.dist-info/WHEEL
   running build_py
   running build_ext
   building 'custom_esimd_kernels_vllm.custom_esimd_kernels' extension
-  creating /tmp/tmp8j8rzolm.build-temp/csrc/xpu
-  Emitting ninja build file /tmp/tmp8j8rzolm.build-temp/build.ninja...
+  creating /tmp/tmpe2x64rga.build-temp/csrc/xpu
+  Emitting ninja build file /tmp/tmpe2x64rga.build-temp/build.ninja...
   Compiling objects...
   Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
-  [1/3] c++ -MMD -MF /tmp/tmp8j8rzolm.build-temp/csrc/xpu/torch_extension.o.d -pthread -B /home/edgeai/miniforge3/envs/down/compiler_compat -fno-strict-overflow -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -I/home/edgeai/esimd_learning/include -I/home/edgeai/esimd_learning/csrc -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -I/opt/intel/oneapi/compiler/2025.3/include -I/opt/intel/oneapi/compiler/2025.3/include/sycl -I/home/edgeai/miniforge3/envs/down/include/python3.12 -c -c /home/edgeai/esimd_learning/csrc/xpu/torch_extension.cc -o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/torch_extension.o -O3 -std=c++17 -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE=""' '-DPYBIND11_STDLIB=""' '-DPYBIND11_BUILD_ABI=""' -DTORCH_EXTENSION_NAME=custom_esimd_kernels -D_GLIBCXX_USE_CXX11_ABI=1
-  [2/3] icpx -pthread -B /home/edgeai/miniforge3/envs/down/compiler_compat -fno-strict-overflow -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -I/home/edgeai/esimd_learning/include -I/home/edgeai/esimd_learning/csrc -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -I/opt/intel/oneapi/compiler/2025.3/include -I/opt/intel/oneapi/compiler/2025.3/include/sycl -I/home/edgeai/miniforge3/envs/down/include/python3.12 -c -fsycl -fsycl-targets=spir64_gen,spir64 -std=c++17 -sycl-std=2020 -c -x c++ /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl -o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/esimd_kernel.o -ffast-math -fsycl-device-code-split=per_kernel -fsycl-targets=spir64_gen -Xs '-device ptl-h' -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE=""' '-DPYBIND11_STDLIB=""' '-DPYBIND11_BUILD_ABI=""' -DTORCH_EXTENSION_NAME=custom_esimd_kernels -D_GLIBCXX_USE_CXX11_ABI=1
+  [1/3] c++ -MMD -MF /tmp/tmpe2x64rga.build-temp/csrc/xpu/torch_extension.o.d -pthread -B /home/edgeai/miniforge3/envs/down/compiler_compat -fno-strict-overflow -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -I/home/edgeai/esimd_learning/include -I/home/edgeai/esimd_learning/csrc -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -I/opt/intel/oneapi/compiler/2025.3/include -I/opt/intel/oneapi/compiler/2025.3/include/sycl -I/home/edgeai/miniforge3/envs/down/include/python3.12 -c -c /home/edgeai/esimd_learning/csrc/xpu/torch_extension.cc -o /tmp/tmpe2x64rga.build-temp/csrc/xpu/torch_extension.o -O3 -std=c++17 -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE=""' '-DPYBIND11_STDLIB=""' '-DPYBIND11_BUILD_ABI=""' -DTORCH_EXTENSION_NAME=custom_esimd_kernels -D_GLIBCXX_USE_CXX11_ABI=1
+  [2/3] icpx -pthread -B /home/edgeai/miniforge3/envs/down/compiler_compat -fno-strict-overflow -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -I/home/edgeai/esimd_learning/include -I/home/edgeai/esimd_learning/csrc -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -I/opt/intel/oneapi/compiler/2025.3/include -I/opt/intel/oneapi/compiler/2025.3/include/sycl -I/home/edgeai/miniforge3/envs/down/include/python3.12 -c -fsycl -fsycl-targets=spir64_gen,spir64 -std=c++17 -sycl-std=2020 -c -x c++ /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl -o /tmp/tmpe2x64rga.build-temp/csrc/xpu/esimd_kernel.o -ffast-math -fsycl-device-code-split=per_kernel -fsycl-targets=spir64_gen -Xs '-device ptl-h' -I/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE=""' '-DPYBIND11_STDLIB=""' '-DPYBIND11_BUILD_ABI=""' -DTORCH_EXTENSION_NAME=custom_esimd_kernels -D_GLIBCXX_USE_CXX11_ABI=1
   icpx: warning: argument unused during compilation: '-Xs -device ptl-h' [-Wunused-command-line-argument]
   In file included from /home/edgeai/esimd_learning/csrc/xpu/esimd_kernel.sycl:1:
   In file included from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/include/ATen/ATen.h:8:
@@ -1146,7 +1146,7 @@ Building wheels for collected packages: custom-esimd-kernels-vllm
     117 |       return checked_convert<type, double>(v.d, #type);               \
         |              ^
   23 warnings generated.
-  [3/3] icpx /tmp/tmp8j8rzolm.build-temp/csrc/xpu/esimd_kernel.o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/torch_extension.o -o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/sycl_dlink.o -fsycl -fsycl-targets=spir64_gen,spir64 -fsycl-link --offload-compress -Xs "-device ptl"
+  [3/3] icpx /tmp/tmpe2x64rga.build-temp/csrc/xpu/esimd_kernel.o /tmp/tmpe2x64rga.build-temp/csrc/xpu/torch_extension.o -o /tmp/tmpe2x64rga.build-temp/csrc/xpu/sycl_dlink.o -fsycl -fsycl-targets=spir64_gen,spir64 -fsycl-link --offload-compress -Xs "-device ptl"
   icpx: warning: linked binaries do not contain expected 'spir64-unknown-unknown' target; found targets: 'spir64_gen-unknown-unknown' [-Wsycl-target]
   Spill memory used = 11200 bytes for kernel _ZTS20GEMV_fp8_pern_kernelILi1280ELi1EE
    Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
@@ -1176,11 +1176,11 @@ Building wheels for collected packages: custom-esimd-kernels-vllm
    Compiling kernel with spill code may degrade performance. Please consider rewriting the kernel to use less registers.
   Compilation from IR - skipping loading of FCL
   Build succeeded.
-  creating /tmp/tmprujre62i.build-lib/custom_esimd_kernels_vllm
-  g++ -pthread -B /home/edgeai/miniforge3/envs/down/compiler_compat -fno-strict-overflow -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -shared /tmp/tmp8j8rzolm.build-temp/csrc/xpu/esimd_kernel.o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/torch_extension.o /tmp/tmp8j8rzolm.build-temp/csrc/xpu/sycl_dlink.o -L/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/lib -lc10 -lc10_xpu -ltorch -ltorch_cpu -lsycl -ltorch_python -ltorch_xpu -o /tmp/tmprujre62i.build-lib/custom_esimd_kernels_vllm/custom_esimd_kernels.cpython-312-x86_64-linux-gnu.so -Wl,-rpath,$ORIGIN/../../torch/lib
-  /home/edgeai/miniforge3/envs/down/compiler_compat/ld: /tmp/tmp8j8rzolm.build-temp/csrc/xpu/sycl_dlink.o: warning: relocation in read-only section `.rodata'
+  creating /tmp/tmps3cv7ae8.build-lib/custom_esimd_kernels_vllm
+  g++ -pthread -B /home/edgeai/miniforge3/envs/down/compiler_compat -fno-strict-overflow -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -fPIC -O2 -isystem /home/edgeai/miniforge3/envs/down/include -shared /tmp/tmpe2x64rga.build-temp/csrc/xpu/esimd_kernel.o /tmp/tmpe2x64rga.build-temp/csrc/xpu/torch_extension.o /tmp/tmpe2x64rga.build-temp/csrc/xpu/sycl_dlink.o -L/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/torch/lib -lc10 -lc10_xpu -ltorch -ltorch_cpu -lsycl -ltorch_python -ltorch_xpu -o /tmp/tmps3cv7ae8.build-lib/custom_esimd_kernels_vllm/custom_esimd_kernels.cpython-312-x86_64-linux-gnu.so -Wl,-rpath,$ORIGIN/../../torch/lib
+  /home/edgeai/miniforge3/envs/down/compiler_compat/ld: /tmp/tmpe2x64rga.build-temp/csrc/xpu/sycl_dlink.o: warning: relocation in read-only section `.rodata'
   /home/edgeai/miniforge3/envs/down/compiler_compat/ld: warning: creating DT_TEXTREL in a shared object
-  copying /tmp/tmprujre62i.build-lib/custom_esimd_kernels_vllm/custom_esimd_kernels.cpython-312-x86_64-linux-gnu.so -> python/custom_esimd_kernels_vllm
+  copying /tmp/tmps3cv7ae8.build-lib/custom_esimd_kernels_vllm/custom_esimd_kernels.cpython-312-x86_64-linux-gnu.so -> python/custom_esimd_kernels_vllm
 
           Editable install will be performed using .pth file to extend `sys.path` with:
           ['python']
@@ -1189,14 +1189,14 @@ Building wheels for collected packages: custom-esimd-kernels-vllm
   `packages.find.exclude/include` may have no effect.
 
   adding '__editable__.custom_esimd_kernels_vllm-0.1.0.pth'
-  creating '/tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpgwhoci95/.tmp-4c8jh_bz/custom_esimd_kernels_vllm-0.1.0-0.editable-cp312-cp312-linux_x86_64.whl' and adding '/tmp/tmpo6j6r1_pcustom_esimd_kernels_vllm-0.1.0-0.editable-cp312-cp312-linux_x86_64.whl' to it
+  creating '/tmp/pip-ephem-wheel-cache-iaxt25rt/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpq75wmdtn/.tmp-cdn36djr/custom_esimd_kernels_vllm-0.1.0-0.editable-cp312-cp312-linux_x86_64.whl' and adding '/tmp/tmph8laxu2dcustom_esimd_kernels_vllm-0.1.0-0.editable-cp312-cp312-linux_x86_64.whl' to it
   adding 'custom_esimd_kernels_vllm-0.1.0.dist-info/METADATA'
   adding 'custom_esimd_kernels_vllm-0.1.0.dist-info/WHEEL'
   adding 'custom_esimd_kernels_vllm-0.1.0.dist-info/top_level.txt'
   adding 'custom_esimd_kernels_vllm-0.1.0.dist-info/RECORD'
   Building editable for custom-esimd-kernels-vllm (pyproject.toml): finished with status 'done'
-  Created wheel for custom-esimd-kernels-vllm: filename=custom_esimd_kernels_vllm-0.1.0-0.editable-cp312-cp312-linux_x86_64.whl size=1399 sha256=9875136b7a1f9f900f03074f148ec534279dbea5d28075ee57f0172658b88f3e
-  Stored in directory: /tmp/pip-ephem-wheel-cache-ptsag0x4/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624
+  Created wheel for custom-esimd-kernels-vllm: filename=custom_esimd_kernels_vllm-0.1.0-0.editable-cp312-cp312-linux_x86_64.whl size=1399 sha256=59ac2dd94d03743809c8cdca3f8b5c8685fafaea49ebd06601c515572e704eba
+  Stored in directory: /tmp/pip-ephem-wheel-cache-iaxt25rt/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624
 Successfully built custom-esimd-kernels-vllm
 Installing collected packages: custom-esimd-kernels-vllm
   Attempting uninstall: custom-esimd-kernels-vllm
