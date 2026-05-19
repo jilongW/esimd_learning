@@ -186,45 +186,57 @@ def test_esimd_vs_vllm():
     )
     print("-" * 126)
 
-    def make_tensors(N, K):
-        w = (torch.randn(N, K, dtype=torch.float16, device=device) * 0.1).to(torch.float8_e4m3fn)
-        s = torch.randn(N, dtype=torch.float16, device=device) * 0.1
-        o = torch.zeros(1, N, dtype=torch.float16, device=device)
-        return w, s, o
-
     shapes = [
-        ("qkv_proj",     3072, 2560),                  
-        ("qkv_proj",     6144, 2560),                  
-        ("Attn o_proj",  2560, 2048),                   
-        ("Attn o_proj",  2560, 4096),                   
-        ("gate_up_proj", 20480, 2560),                 
-        ("down_proj",    2560, 10240),                 
-        ("per_layer_input_gate",  256, 2560),           
-        ("per_layer_input_gate_out",     2560, 256),    
+        ("qkv_proj",     3072, 2560),                               # 128/10
+        ("qkv_proj",     6144, 2560),                               # 128/10
+        ("Attn o_proj",  2560, 2048),                               # 256/4
+        ("Attn o_proj",  2560, 4096),                               # 256/4
+        ("gate_up_proj", 20480, 2560),                              # 128/10
+        ("down_proj",    2560, 10240),                              # 128/10
+        ("per_layer_input_gate",  256, 2560),                       # 128/10
+        ("per_layer_input_gate_out",     2560, 256),                # 256/1
     ]
 
-    ni = 1000
 
     for name, N, K in shapes:
+        weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
+        weight_fp8 = weight_ref.to(torch.float8_e4m3fn)
+        scale = torch.randn(N, dtype=torch.float16, device=device) * 0.1
         input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
-        w0, s0, o0 = make_tensors(N, K)
-        config = f"N={N} K={K}"
+        output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
+        # Total bytes: input(K*2) + weight(N*K) + scale(N*2) + output(N*2)
+        total_bytes = K * 2 + N * K + N * 2 + N * 2
+
+        # Cache-bust: create multiple weight copies
+        wb = N * K
+        target_mem = 32 * 1024 * 1024
+        nc = max(16, target_mem // max(wb, 1))
+        nc = min(nc, 512)
+
+        weights = [weight_fp8]
+        for i in range(1, nc):
+            w = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
+            weights.append(w.to(torch.float8_e4m3fn))
+
+        config = f"N={N} K={K}"
+        ni = 4000
         # Warmup + bench individual
         for _ in range(10):
-            esimd_gemv_fp8_pern(input_t, w0, s0, o0, N, K)
+            esimd_gemv_fp8_pern(input_t, weights[_ % nc], scale, output, N, K)
             probe_idx = _ % 256
-            probe_val = o0[0, probe_idx]
+            probe_val = output[0, probe_idx]
             if torch.isinf(probe_val):
                 raise AssertionError(
                     f"o0[{probe_idx}] is inf at iter={i}, N={N}, K={K}, value={probe_val.item()}"
                 )
         torch.xpu.synchronize()
         total_bytes = K * 2 + N * K + N * 2 + N * 2
+        time.sleep(1)
         t0 = time.perf_counter()
         for i in range(ni):
             # o0 = torch.zeros(1, N, dtype=torch.float16, device=device)
-            esimd_gemv_fp8_pern(input_t, w0, s0, o0, N, K)
+            esimd_gemv_fp8_pern(input_t, weights[i % nc], scale, output, N, K)
             # probe_idx = i % 256
             # probe_val = o0[0, probe_idx]
             # if torch.isinf(probe_val):
@@ -233,21 +245,21 @@ def test_esimd_vs_vllm():
             #     )
         torch.xpu.synchronize()
         indiv_us = (time.perf_counter() - t0) / ni * 1e6
-
+        time.sleep(1)  # ensure clear separation between runs
         # Warmup + bench individual vllm
         for _ in range(10):
-            output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, w0.t(), s0, None)
-            probe_idx = i % 256
+            output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, weights[_ % nc].t(), scale, None)
+            probe_idx = _ % 256
             probe_val = output[0, probe_idx]
             if torch.isinf(probe_val):
                 raise AssertionError(
-                    f"o0[{probe_idx}] is inf at iter={i}, N={N}, K={K}, value={probe_val.item()}"
+                    f"o0[{probe_idx}] is inf at iter={_}, N={N}, K={K}, value={probe_val.item()}"
                 )
         torch.xpu.synchronize()
-        
+        time.sleep(1)  # ensure clear separation between runs
         t0 = time.perf_counter()
         for i in range(ni):
-            output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, w0.t(), s0, None)
+            output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, weights[i % nc].t(), scale, None)
             # probe_idx = i % 256
             # probe_val = output[0, probe_idx]
             # if torch.isinf(probe_val):

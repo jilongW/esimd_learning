@@ -94,19 +94,19 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
     // printf("Selecting VL/KS for N=%u K=%u\n", N, K);
     vl = 512; ks = 1;
 
-    if (K < 512) {
-        vl = 128; ks = 2;
-    } else if (K == 512) {
-        vl = 256; ks = 2;
-    }
-    if (K >= 8192) {
-        vl = 512; ks = 2;
-    }else if (K >= 4096 && N>= 2048) {
-        vl = 256; ks = 2;
-    }else if (K >= 2048 && N >= 8192) {
-        vl = 128; ks = 4;
-    }else if (K >= 2048 && N >= 2048) {
+    if (K < 256) {
+        vl = 128; ks = 1;
+    } else if (K == 256) {
         vl = 256; ks = 1;
+    }
+    if (K >= 10240) {
+        vl = 128; ks = 10;
+    }else if (K >= 4096) {
+        vl = 256; ks = 4;
+    }else if (K >= 2560) {
+        vl = 128; ks = 10;
+    }else if (K >= 2048 ){
+        vl = 256; ks = 4;
     }
 
     int kpt = K / ks;
@@ -158,6 +158,7 @@ inline void GEMV_fp8_pern_host(
     else if (vl == 128 && ks == 2) { LAUNCH(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH(128, 4) }
     else if (vl == 128 && ks == 8) { LAUNCH(128, 8) }
+    else if (vl == 128 && ks == 10) { LAUNCH(128, 10) }
     else { LAUNCH(128, 1) }
 
     #undef LAUNCH
@@ -281,6 +282,7 @@ inline void GEMV_fp8_pern_fused_host(
     else if (vl == 128 && ks == 2) { LAUNCH_FUSED(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH_FUSED(128, 4) }
     else if (vl == 128 && ks == 8) { LAUNCH_FUSED(128, 8) }
+    else if (vl == 128 && ks == 10) { LAUNCH_FUSED(128, 10) }
     else { LAUNCH_FUSED(128, 1) }
 
     #undef LAUNCH_FUSED
@@ -374,6 +376,7 @@ inline void GEMV_fp8_pert_host(
     else if (vl == 128 && ks == 2) { LAUNCH_PERT(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH_PERT(128, 4) }
     else if (vl == 128 && ks == 8) { LAUNCH_PERT(128, 8) }
+    else if (vl == 128 && ks == 10) { LAUNCH_PERT(128, 10) }
     else { LAUNCH_PERT(128, 1) }
 
     #undef LAUNCH_PERT
@@ -496,6 +499,7 @@ inline void GEMV_fp8_pert_fused_host(
     else if (vl == 128 && ks == 2) { LAUNCH_PERT_FUSED(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH_PERT_FUSED(128, 4) }
     else if (vl == 128 && ks == 8) { LAUNCH_PERT_FUSED(128, 8) }
+    else if (vl == 128 && ks == 10) { LAUNCH_PERT_FUSED(128, 10) }
     else { LAUNCH_PERT_FUSED(128, 1) }
 
     #undef LAUNCH_PERT_FUSED
