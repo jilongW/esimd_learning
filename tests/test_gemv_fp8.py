@@ -285,7 +285,8 @@ def benchmark_best_vl_ks():
         torch.xpu.synchronize()
         auto_us = (time.perf_counter() - t0) / ni * 1e6
 
-        best_configs = [(128, 1)]
+        best_tolerance_us = 0.1
+        best_entries = [(128, 1, auto_us)]
         best_us = auto_us
         for vl, ks in valid_candidates:
             esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl=vl, ks=ks)
@@ -322,13 +323,25 @@ def benchmark_best_vl_ks():
             torch.xpu.synchronize()
             tuned_us = (time.perf_counter() - t0) / ni * 1e6
             #print(f"  {name:<30} N={N:5d} K={K:5d} vl={vl} ks={ks} -> {tuned_us:.2f} us (128:1 {auto_us:.2f} us)")
-            if tuned_us < best_us:
+            if tuned_us < (best_us - best_tolerance_us):
                 best_us = tuned_us
-                best_configs = [(vl, ks)]
-            elif tuned_us == best_us and (vl, ks) not in best_configs:
-                best_configs.append((vl, ks))
+                best_entries = [(vl, ks, tuned_us)]
+            elif abs(tuned_us - best_us) <= best_tolerance_us:
+                if tuned_us < best_us:
+                    best_us = tuned_us
+                best_entries.append((vl, ks, tuned_us))
+                best_entries = [
+                    (entry_vl, entry_ks, entry_us)
+                    for entry_vl, entry_ks, entry_us in best_entries
+                    if abs(entry_us - best_us) <= best_tolerance_us
+                ]
 
         speedup = auto_us / best_us if best_us > 0 else 0.0
+        best_configs = []
+        for entry_vl, entry_ks, _ in best_entries:
+            config = (entry_vl, entry_ks)
+            if config not in best_configs:
+                best_configs.append(config)
         best_str = ", ".join(f"{vl}/{ks}" for vl, ks in best_configs)
         print(f"{name:<30} {N:>6} {K:>6} | {best_str:>18} {auto_us:>9.2f} {best_us:>9.2f} {speedup:>7.2f}x")
 
