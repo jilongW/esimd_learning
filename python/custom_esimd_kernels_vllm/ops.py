@@ -52,7 +52,8 @@ def esimd_gemm_fp8_pert(
 ) -> torch.Tensor:
     """FP8 GEMM with per-tensor scale — handles any M (auto-dispatches).
 
-    input:  [M, K] fp16, weight: [N, K] fp8, scale: fp32 scalar, output: [M, N] fp16.
+    input/output: [M, K]/[M, N] fp16 or bf16 with matching dtype,
+    weight: [N, K] fp8, scale: fp32 scalar.
     N and K are inferred from weight shape. M from input shape.
 
     Auto-dispatch:

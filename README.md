@@ -22,11 +22,12 @@
 典型环境初始化：
 
 ```bash
-source /opt/intel/oneapi/setvars.sh --force
-source ~/downstream/bin/activate
+source /home/edgeai/miniforge3/etc/profile.d/conda.sh
+conda activate down
+source /opt/intel/oneapi/setvars.sh
 ```
 
-如果你使用的是虚拟环境，也需要先激活对应 Python 环境。
+如果当前 shell 里已经执行过一次 `setvars.sh`，再次 `source` 时会打印提示；这不影响后续编译命令继续执行。
 
 ## 怎么编译
 
@@ -35,12 +36,30 @@ source ~/downstream/bin/activate
 
 ```bash
 cd /home/edgeai/esimd_learning
+source /home/edgeai/miniforge3/etc/profile.d/conda.sh
+conda activate down
+source /opt/intel/oneapi/setvars.sh
 TORCH_XPU_ARCH_LIST=ptl pip install -e . --no-build-isolation
 ```
+
+如果你只想本地重编译扩展，也可以直接运行：
+
+```bash
+cd /home/edgeai/esimd_learning
+source /home/edgeai/miniforge3/etc/profile.d/conda.sh
+conda activate down
+source /opt/intel/oneapi/setvars.sh
+TORCH_XPU_ARCH_LIST=ptl python setup.py build_ext --inplace
+```
+
+这里显式固定 `TORCH_XPU_ARCH_LIST=ptl`，避免多架构 device-link 把 `mtl-h` 等目标一起带进来后触发编译失败。
 ## 怎么运行测试
 
 ```bash
 cd /home/edgeai/esimd_learning
+source /home/edgeai/miniforge3/etc/profile.d/conda.sh
+conda activate down
+source /opt/intel/oneapi/setvars.sh
 python tests/test_gemv_fp8.py
 ```
 

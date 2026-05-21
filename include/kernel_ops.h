@@ -22,7 +22,8 @@ at::Tensor esimd_fused_add_rms_norm_batched(
     at::Tensor hidden_states, at::Tensor residual,
     at::Tensor weight, double eps);
 
-// FP8 GEMM per-tensor scale: input [M, K] fp16, weight [N, K] fp8, output [M, N] fp16
+// FP8 GEMM per-tensor scale: input/output [M, K]/[M, N] fp16 or bf16 (matching dtype),
+// weight [N, K] fp8.
 // Auto-dispatches: M<=3 → batched GEMV, M>=2 E4M3 → DPAS V9, else → WS
 at::Tensor esimd_gemm_fp8_pert(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,

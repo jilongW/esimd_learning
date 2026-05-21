@@ -23,12 +23,33 @@ static inline sycl::queue& get_device_queue(const at::Tensor& tensor) {
 at::Tensor esimd_gemm_fp8_pert(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
     at::Tensor output) {
+    TORCH_CHECK(
+        input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_gemm_fp8_pert: input must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        output.scalar_type() == at::ScalarType::Half || output.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_gemm_fp8_pert: output must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        input.scalar_type() == output.scalar_type(),
+        "esimd_gemm_fp8_pert: input and output must have the same dtype"
+    );
+
     int64_t M = input.size(0);
     int64_t K = weight.size(1);
     int64_t N = weight.size(0);
-    EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
-    EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
-    auto& dpcpp_queue = get_device_queue(input);
+
+    at::Tensor kernel_input = input;
+    at::Tensor kernel_output = output;
+    if (input.scalar_type() == at::ScalarType::BFloat16) {
+        kernel_input = input.to(at::ScalarType::Half);
+        kernel_output = at::empty({M, N}, output.options().dtype(at::ScalarType::Half));
+    }
+
+    EXTRACT_PTR(p_in, kernel_input); EXTRACT_PTR(p_w, weight);
+    EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, kernel_output);
+    auto& dpcpp_queue = get_device_queue(kernel_input);
     GEMM_fp8_pert_dispatch(
         reinterpret_cast<const fp16*>(p_in),
         reinterpret_cast<const uint8_t*>(p_w),
@@ -36,5 +57,9 @@ at::Tensor esimd_gemm_fp8_pert(
         reinterpret_cast<fp16*>(p_out),
         (uint32_t)M, (uint32_t)N, (uint32_t)K,
         get_fp8_mode(weight), dpcpp_queue);
+
+    if (input.scalar_type() == at::ScalarType::BFloat16) {
+        output.copy_(kernel_output);
+    }
     return output;
 }
