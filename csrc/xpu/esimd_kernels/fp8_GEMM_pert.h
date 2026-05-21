@@ -81,10 +81,12 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
         vl = 256; ks = 1;
     }
 
-    if (N <= 128 && K >= 2048) {
-        vl = 128; ks = 8;
-    } else if (N <= 512 && K >= 2048) {
-        vl = 128; ks = 4;
+    if (K >= 10240){
+        vl=256; ks=4;
+    } else if (K >= 2560) {
+        vl = 128; ks = 10;
+    } else if (K >= 2048) {
+        vl = 256; ks = 2;
     }
 
     int kpt = K / ks;
@@ -3811,6 +3813,7 @@ inline void batched_gemv_fp8_pert_host(
     else if (vl == 128 && ks == 2) { LAUNCH_BATCHED(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH_BATCHED(128, 4) }
     else if (vl == 128 && ks == 8) { LAUNCH_BATCHED(128, 8) }
+    else if (vl == 128 && ks == 10) { LAUNCH_BATCHED(128, 10) }
     else                           { LAUNCH_BATCHED(128, 1) }
 
     #undef LAUNCH_BATCHED

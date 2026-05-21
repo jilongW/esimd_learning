@@ -97,16 +97,18 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
     if (K < 256) {
         vl = 128; ks = 1;
     } else if (K == 256) {
-        vl = 256; ks = 1;
+        vl = 128; ks = 2;
     }
     if (K >= 10240) {
         vl = 128; ks = 10;
     }else if (K >= 4096) {
         vl = 256; ks = 4;
-    }else if (K >= 2560) {
+    }else if (K >= 2560 && N>=10240) {
+        vl = 512; ks = 1;
+    }else if (K >= 2560 ){
         vl = 128; ks = 10;
-    }else if (K >= 2048 ){
-        vl = 256; ks = 4;
+    }    else if (K >= 2048 ){
+        vl = 256; ks = 8;
     }
 
     int kpt = K / ks;
@@ -154,6 +156,7 @@ inline void GEMV_fp8_pern_host(
     else if (vl == 256 && ks == 1) { LAUNCH(256, 1) }
     else if (vl == 256 && ks == 2) { LAUNCH(256, 2) }
     else if (vl == 256 && ks == 4) { LAUNCH(256, 4) }
+    else if (vl == 256 && ks == 8) { LAUNCH(256, 8) }
     else if (vl == 128 && ks == 1) { LAUNCH(128, 1) }
     else if (vl == 128 && ks == 2) { LAUNCH(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH(128, 4) }
@@ -278,6 +281,7 @@ inline void GEMV_fp8_pern_fused_host(
     else if (vl == 256 && ks == 1) { LAUNCH_FUSED(256, 1) }
     else if (vl == 256 && ks == 2) { LAUNCH_FUSED(256, 2) }
     else if (vl == 256 && ks == 4) { LAUNCH_FUSED(256, 4) }
+    else if (vl == 256 && ks == 8) { LAUNCH_FUSED(256, 8) }
     else if (vl == 128 && ks == 1) { LAUNCH_FUSED(128, 1) }
     else if (vl == 128 && ks == 2) { LAUNCH_FUSED(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH_FUSED(128, 4) }
@@ -372,6 +376,7 @@ inline void GEMV_fp8_pert_host(
     else if (vl == 256 && ks == 1) { LAUNCH_PERT(256, 1) }
     else if (vl == 256 && ks == 2) { LAUNCH_PERT(256, 2) }
     else if (vl == 256 && ks == 4) { LAUNCH_PERT(256, 4) }
+    else if (vl == 256 && ks == 8) { LAUNCH_PERT(256, 8) }
     else if (vl == 128 && ks == 1) { LAUNCH_PERT(128, 1) }
     else if (vl == 128 && ks == 2) { LAUNCH_PERT(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH_PERT(128, 4) }
@@ -495,6 +500,7 @@ inline void GEMV_fp8_pert_fused_host(
     else if (vl == 256 && ks == 1) { LAUNCH_PERT_FUSED(256, 1) }
     else if (vl == 256 && ks == 2) { LAUNCH_PERT_FUSED(256, 2) }
     else if (vl == 256 && ks == 4) { LAUNCH_PERT_FUSED(256, 4) }
+    else if (vl == 256 && ks == 8) { LAUNCH_PERT_FUSED(256, 8) }
     else if (vl == 128 && ks == 1) { LAUNCH_PERT_FUSED(128, 1) }
     else if (vl == 128 && ks == 2) { LAUNCH_PERT_FUSED(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH_PERT_FUSED(128, 4) }

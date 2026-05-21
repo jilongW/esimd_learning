@@ -57,4 +57,9 @@ def esimd_gemm_fp8_pert(
       M=1-3  → batched GEMV (BW-bound, K-split SLM reduction)
       M>=2   → DPAS V9 (E4M3, K%64==0) or DPAS V7 (E5M2) or WS fallback
     """
-    return _ops.esimd_gemm_fp8_pert(input, weight, weight_scale, output)
+    return _ops.esimd_gemm_fp8_pert(
+        input,
+        weight,
+        weight_scale,
+        output,
+    )

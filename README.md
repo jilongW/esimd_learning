@@ -43,3 +43,34 @@ TORCH_XPU_ARCH_LIST=ptl pip install -e . --no-build-isolation
 cd /home/edgeai/esimd_learning
 python tests/test_gemv_fp8.py
 ```
+
+如果你要顺手拉起 standalone OpenCL FP16 GEMM 压测，可以运行新增的 [tests/test_cm_fp16_gemm.py](/llm/cm/esimd_learning/tests/test_cm_fp16_gemm.py)。这个测试默认不会参与常规 pytest，需要显式打开；推荐从 [cm.gemm.examples.kernels](cm.gemm.examples.kernels) 目录触发，这样编译和运行入口都放在 GEMM 工程这一侧：
+
+如果你希望先把 FP16 GEMM 工程本身装成 editable package，也可以先执行：
+
+```bash
+source /llm/cm/miniforge3/bin/activate
+conda activate test
+cd /llm/cm/cm.gemm.examples.kernels
+TORCH_XPU_ARCH_LIST=ptl pip install -e . --no-build-isolation
+```
+
+这条命令已经在 `test` conda 环境里验证通过。
+
+```bash
+source /llm/cm/miniforge3/bin/activate
+conda activate test
+cd /llm/cm/cm.gemm.examples.kernels
+CM_GEMM_RUN=1 \
+CM_GEMM_LIB=/llm/cm/cm.gemm.examples.kernels/standalone/fp16.gemm/build_pytest/libcm_fp16_gemm.so \
+CM_GEMM_KERNEL_BIN=/llm/cm/cm.gemm.examples.kernels/standalone/fp16.gemm/build_pytest/kernel.cm.bin \
+python ../esimd_learning/tests/test_cm_fp16_gemm.py
+```
+
+常用环境变量：
+
+- `CM_GEMM_LIB`：复用已经编好的 `libcm_fp16_gemm.so`
+- `CM_GEMM_KERNEL_BIN`：复用现成的 `kernel.cm.bin`
+- `CM_GEMM_CASES`：指定压测形状，格式如 `5120x2560x5120x100x512x256;2048x2048x2048x200`
+
+这个脚本现在会直接加载现成的 `libcm_fp16_gemm.so` 和 `kernel.cm.bin`，并通过导出的 `cm_fp16_gemm_run` 函数执行单次 GEMM。共享库和 kernel binary 都属于 [cm.gemm.examples.kernels](cm.gemm.examples.kernels) 这一侧的产物；性能循环和正确性验证放在 Python 层完成，不再通过子进程启动可执行文件。

@@ -189,12 +189,12 @@ def test_esimd_vs_vllm():
     shapes = [
         ("qkv_proj",     3072, 2560),                               # 128/10
         ("qkv_proj",     6144, 2560),                               # 128/10
-        ("Attn o_proj",  2560, 2048),                               # 256/4
+        ("Attn o_proj",  2560, 2048),                               # 256/8
         ("Attn o_proj",  2560, 4096),                               # 256/4
-        ("gate_up_proj", 20480, 2560),                              # 128/10
+        ("gate_up_proj", 20480, 2560),                              # 512/1
         ("down_proj",    2560, 10240),                              # 128/10
         ("per_layer_input_gate",  256, 2560),                       # 128/10
-        ("per_layer_input_gate_out",     2560, 256),                # 256/1
+        ("per_layer_input_gate_out",     2560, 256),                # 128/2
     ]
 
 
