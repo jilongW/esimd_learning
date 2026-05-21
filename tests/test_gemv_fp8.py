@@ -179,6 +179,10 @@ def test_esimd_vs_vllm():
         esimd_gemv_fp8_pern, 
     )
 
+    def run_esimd_case(input_t, weight_t, scale_t, output_t, n, k):
+        esimd_gemv_fp8_pern(input_t, weight_t, scale_t, output_t, n, k)
+        return output_t
+
     TARGET_BW = 112.0  # GB/s PTL
 
     print(
@@ -197,18 +201,17 @@ def test_esimd_vs_vllm():
         ("per_layer_input_gate_out",     2560, 256),                # 128/2
     ]
 
+    dtype_cases = [
+        ("fp16", torch.float16),
+        ("bf16", torch.bfloat16),
+    ]
+
 
     for name, N, K in shapes:
         weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
         weight_fp8 = weight_ref.to(torch.float8_e4m3fn)
         scale = torch.randn(N, dtype=torch.float16, device=device) * 0.1
-        input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
-        output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        # Total bytes: input(K*2) + weight(N*K) + scale(N*2) + output(N*2)
-        total_bytes = K * 2 + N * K + N * 2 + N * 2
-
-        # Cache-bust: create multiple weight copies
         wb = N * K
         target_mem = 32 * 1024 * 1024
         nc = max(16, target_mem // max(wb, 1))
@@ -219,67 +222,61 @@ def test_esimd_vs_vllm():
             w = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
             weights.append(w.to(torch.float8_e4m3fn))
 
-        config = f"N={N} K={K}"
-        ni = 4000
-        # Warmup + bench individual
-        for _ in range(10):
-            esimd_gemv_fp8_pern(input_t, weights[_ % nc], scale, output, N, K)
-            probe_idx = _ % 256
-            probe_val = output[0, probe_idx]
-            if torch.isinf(probe_val):
-                raise AssertionError(
-                    f"o0[{probe_idx}] is inf at iter={i}, N={N}, K={K}, value={probe_val.item()}"
-                )
-        torch.xpu.synchronize()
-        total_bytes = K * 2 + N * K + N * 2 + N * 2
-        time.sleep(1)
-        t0 = time.perf_counter()
-        for i in range(ni):
-            # o0 = torch.zeros(1, N, dtype=torch.float16, device=device)
-            esimd_gemv_fp8_pern(input_t, weights[i % nc], scale, output, N, K)
-            # probe_idx = i % 256
-            # probe_val = o0[0, probe_idx]
-            # if torch.isinf(probe_val):
-            #     raise AssertionError(
-            #         f"o0[{probe_idx}] is inf at iter={i}, N={N}, K={K}, value={probe_val.item()}"
-            #     )
-        torch.xpu.synchronize()
-        indiv_us = (time.perf_counter() - t0) / ni * 1e6
-        time.sleep(1)  # ensure clear separation between runs
-        # Warmup + bench individual vllm
-        for _ in range(10):
-            output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, weights[_ % nc].t(), scale, None)
-            probe_idx = _ % 256
-            probe_val = output[0, probe_idx]
-            if torch.isinf(probe_val):
-                raise AssertionError(
-                    f"o0[{probe_idx}] is inf at iter={_}, N={N}, K={K}, value={probe_val.item()}"
-                )
-        torch.xpu.synchronize()
-        time.sleep(1)  # ensure clear separation between runs
-        t0 = time.perf_counter()
-        for i in range(ni):
-            output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, weights[i % nc].t(), scale, None)
-            # probe_idx = i % 256
-            # probe_val = output[0, probe_idx]
-            # if torch.isinf(probe_val):
-            #     raise AssertionError(
-            #         f"o0[{probe_idx}] is inf at iter={i}, N={N}, K={K}, value={probe_val.item()}"
-            #     )
-        torch.xpu.synchronize()
-        
-        vllm_us = (time.perf_counter() - t0) / ni * 1e6
-        flops = 2 * N * K
-        indiv_tflops = flops / (indiv_us * 1e6) if indiv_us > 0 else 0
-        vllm_tflops = flops / (vllm_us * 1e6) if vllm_us > 0 else 0
-        indiv_bw = (total_bytes / 1e9) / (indiv_us / 1e6) if indiv_us > 0 else 0
-        vllm_bw = (total_bytes / 1e9) / (vllm_us / 1e6) if vllm_us > 0 else 0
+        for dtype_name, io_dtype in dtype_cases:
+            input_t = torch.randn(1, K, dtype=io_dtype, device=device) * 0.1
+            output = torch.zeros(1, N, dtype=io_dtype, device=device)
 
-        speedup = vllm_us / indiv_us if indiv_us > 0 else 0
-        print(
-            f"{name:<30} {config:>20} | {indiv_us:>9.2f} {vllm_us:>9.2f} "
-            f"{indiv_tflops:>9.4f} {vllm_tflops:>9.4f} {indiv_bw:>11.2f} {vllm_bw:>11.2f} {speedup:>7.2f}x"
-        )
+            # Total bytes: input + weight + scale + output
+            element_bytes = torch.tensor([], dtype=io_dtype).element_size()
+            total_bytes = K * element_bytes + N * K + N * 2 + N * element_bytes
+
+            config = f"N={N} K={K} {dtype_name}"
+            ni = 4000
+
+            for warmup_idx in range(10):
+                run_esimd_case(input_t, weights[warmup_idx % nc], scale, output, N, K)
+                probe_idx = warmup_idx % min(256, N)
+                probe_val = output[0, probe_idx]
+                if torch.isinf(probe_val):
+                    raise AssertionError(
+                        f"o0[{probe_idx}] is inf at iter={warmup_idx}, N={N}, K={K}, dtype={dtype_name}, value={probe_val.item()}"
+                    )
+            torch.xpu.synchronize()
+            time.sleep(1)
+            t0 = time.perf_counter()
+            for i in range(ni):
+                run_esimd_case(input_t, weights[i % nc], scale, output, N, K)
+            torch.xpu.synchronize()
+            indiv_us = (time.perf_counter() - t0) / ni * 1e6
+
+            time.sleep(1)
+            for warmup_idx in range(10):
+                output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, weights[warmup_idx % nc].t(), scale, None)
+                probe_idx = warmup_idx % min(256, N)
+                probe_val = output[0, probe_idx]
+                if torch.isinf(probe_val):
+                    raise AssertionError(
+                        f"o0[{probe_idx}] is inf at iter={warmup_idx}, N={N}, K={K}, dtype={dtype_name}, value={probe_val.item()}"
+                    )
+            torch.xpu.synchronize()
+            time.sleep(1)
+            t0 = time.perf_counter()
+            for i in range(ni):
+                output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, weights[i % nc].t(), scale, None)
+            torch.xpu.synchronize()
+
+            vllm_us = (time.perf_counter() - t0) / ni * 1e6
+            flops = 2 * N * K
+            indiv_tflops = flops / (indiv_us * 1e6) if indiv_us > 0 else 0
+            vllm_tflops = flops / (vllm_us * 1e6) if vllm_us > 0 else 0
+            indiv_bw = (total_bytes / 1e9) / (indiv_us / 1e6) if indiv_us > 0 else 0
+            vllm_bw = (total_bytes / 1e9) / (vllm_us / 1e6) if vllm_us > 0 else 0
+
+            speedup = vllm_us / indiv_us if indiv_us > 0 else 0
+            print(
+                f"{name:<30} {config:>20} | {indiv_us:>9.2f} {vllm_us:>9.2f} "
+                f"{indiv_tflops:>9.4f} {vllm_tflops:>9.4f} {indiv_bw:>11.2f} {vllm_bw:>11.2f} {speedup:>7.2f}x"
+            )
 
 
 def benchmark_fused():

@@ -23,10 +23,32 @@ at::Tensor esimd_gemv_fp8_pern(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
     at::Tensor output,
     int64_t N, int64_t K) {
+    TORCH_CHECK(
+        input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_gemv_fp8_pern: input must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        output.scalar_type() == at::ScalarType::Half || output.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_gemv_fp8_pern: output must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        input.scalar_type() == output.scalar_type(),
+        "esimd_gemv_fp8_pern: input and output must have the same dtype"
+    );
     EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
     EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
     auto& dpcpp_queue = get_device_queue(input);
-    GEMV_fp8_pern_host(p_in, p_w, p_sc, p_out, N, K, get_fp8_mode(weight), dpcpp_queue);
+    GEMV_fp8_pern_host(
+        p_in,
+        p_w,
+        p_sc,
+        p_out,
+        N,
+        K,
+        input.scalar_type() == at::ScalarType::BFloat16,
+        output.scalar_type() == at::ScalarType::BFloat16,
+        get_fp8_mode(weight),
+        dpcpp_queue);
     return output;
 }
 
@@ -37,10 +59,32 @@ at::Tensor esimd_gemv_fp8_pert(
     at::Tensor output) {
     int64_t N = weight.size(0);
     int64_t K = weight.size(1);
+    TORCH_CHECK(
+        input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_gemv_fp8_pert: input must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        output.scalar_type() == at::ScalarType::Half || output.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_gemv_fp8_pert: output must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        input.scalar_type() == output.scalar_type(),
+        "esimd_gemv_fp8_pert: input and output must have the same dtype"
+    );
     EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
     EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
     auto& dpcpp_queue = get_device_queue(input);
-    GEMV_fp8_pert_host(p_in, p_w, p_sc, p_out, N, K, get_fp8_mode(weight), dpcpp_queue);
+    GEMV_fp8_pert_host(
+        p_in,
+        p_w,
+        p_sc,
+        p_out,
+        N,
+        K,
+        input.scalar_type() == at::ScalarType::BFloat16,
+        output.scalar_type() == at::ScalarType::BFloat16,
+        get_fp8_mode(weight),
+        dpcpp_queue);
     return output;
 }
 

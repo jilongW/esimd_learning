@@ -11,7 +11,8 @@ def esimd_gemv_fp8_pern(
 ) -> torch.Tensor:
     """FP8 weight GEMV with per-N scale, FP32 accumulation, deferred scale.
 
-    input: [1, K] fp16, weight: [N, K] fp8_e4m3, scale: [N] fp16, output: [1, N] fp16.
+    input/output: [1, K]/[1, N] fp16 or bf16 with matching dtype,
+    weight: [N, K] fp8_e4m3, scale: [N] fp16.
     K must be 256-aligned. N must be 8-aligned.
     """
     return _ops.esimd_gemv_fp8_pern(input, weight, weight_scale, output, N, K)
@@ -24,7 +25,8 @@ def esimd_gemv_fp8_pert(
 ) -> torch.Tensor:
     """FP8 weight GEMV with per-tensor scale (fp32 scalar).
 
-    input: [1, K] fp16, weight: [N, K] fp8_e4m3, scale: fp32 scalar, output: [1, N] fp16.
+    input/output: [1, K]/[1, N] fp16 or bf16 with matching dtype,
+    weight: [N, K] fp8_e4m3, scale: fp32 scalar.
     N and K are inferred from weight shape.
     """
     return _ops.esimd_gemv_fp8_pert(input, weight, weight_scale, output)

@@ -41,12 +41,12 @@ SYCL_ESIMD_FUNCTION inline simd<float, VL> fp8_dequant(
 // Per-N scale (pern): scale is fp16[N]
 // ============================================================================
 
-template<int VL, int K_SPLIT>
+template<typename InputT, typename OutputT, int VL, int K_SPLIT>
 struct GEMV_fp8_pern_kernel {
-    const fp16*    input;
+    const InputT*  input;
     const uint8_t* weight;
     const fp16*    scale;
-    fp16*          output;
+    OutputT*       output;
     int N, K;
     int fp8_mode; // 0=E4M3, 1=E5M2
 
@@ -65,7 +65,7 @@ struct GEMV_fp8_pern_kernel {
         simd<float, VL> acc = 0.0f;
 
         for (int k = ks; k < ks + kp; k += VL) {
-            simd<fp16, VL> iv = block_load<fp16, VL>(input + k);
+            simd<InputT, VL> iv = block_load<InputT, VL>(input + k);
             simd<float, VL> input_f = iv;
 
             simd<uint8_t, VL> raw = block_load<uint8_t, VL>(weight + (size_t)n * K + k);
@@ -77,13 +77,13 @@ struct GEMV_fp8_pern_kernel {
         float my_sum = reduce<float>(acc, std::plus<>()) * static_cast<float>(scale[n]);
 
         if constexpr (K_SPLIT == 1) {
-            output[n] = fp16(my_sum);
+            output[n] = OutputT(my_sum);
         } else {
             slm_block_store<float, 1>(lid * sizeof(float), simd<float, 1>(my_sum));
             barrier();
             if (lid == 0) {
                 simd<float, K_SPLIT> parts = slm_block_load<float, K_SPLIT>(0);
-                output[n] = fp16(reduce<float>(parts, std::plus<>()));
+                output[n] = OutputT(reduce<float>(parts, std::plus<>()));
             }
         }
     }
@@ -124,7 +124,8 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
     }
 }
 
-inline void GEMV_fp8_pern_host(
+template<typename InputT, typename OutputT>
+inline void GEMV_fp8_pern_host_impl(
     uint8_t* input_data,
     uint8_t* weight_data,
     uint8_t* scale_data,
@@ -134,10 +135,10 @@ inline void GEMV_fp8_pern_host(
     int fp8_mode,
     sycl::queue& q) {
 
-    auto* p_in  = reinterpret_cast<const fp16*>(input_data);
+    auto* p_in  = reinterpret_cast<const InputT*>(input_data);
     auto* p_w   = reinterpret_cast<const uint8_t*>(weight_data);
     auto* p_sc  = reinterpret_cast<const fp16*>(scale_data);
-    auto* p_out = reinterpret_cast<fp16*>(output_data);
+    auto* p_out = reinterpret_cast<OutputT*>(output_data);
 
     int vl, ks;
     select_vl_ks(N, K, vl, ks);
@@ -148,7 +149,7 @@ inline void GEMV_fp8_pern_host(
     #define LAUNCH(V, S) \
         q.submit([&](sycl::handler& h) { \
             h.parallel_for(sycl::nd_range<1>(global, local), \
-                GEMV_fp8_pern_kernel<V, S>{p_in, p_w, p_sc, p_out, (int)N, (int)K, fp8_mode}); \
+                GEMV_fp8_pern_kernel<InputT, OutputT, V, S>{p_in, p_w, p_sc, p_out, (int)N, (int)K, fp8_mode}); \
         });
 
     if (vl == 512 && ks == 1) { LAUNCH(512, 1) }
@@ -165,6 +166,28 @@ inline void GEMV_fp8_pern_host(
     else { LAUNCH(128, 1) }
 
     #undef LAUNCH
+}
+
+inline void GEMV_fp8_pern_host(
+    uint8_t* input_data,
+    uint8_t* weight_data,
+    uint8_t* scale_data,
+    uint8_t* output_data,
+    uint32_t N,
+    uint32_t K,
+    bool input_is_bf16,
+    bool output_is_bf16,
+    int fp8_mode,
+    sycl::queue& q) {
+    if (input_is_bf16 && output_is_bf16) {
+        GEMV_fp8_pern_host_impl<bf16, bf16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+    } else if (input_is_bf16) {
+        GEMV_fp8_pern_host_impl<bf16, fp16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+    } else if (output_is_bf16) {
+        GEMV_fp8_pern_host_impl<fp16, bf16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+    } else {
+        GEMV_fp8_pern_host_impl<fp16, fp16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+    }
 }
 
 // ============================================================================
@@ -296,12 +319,12 @@ inline void GEMV_fp8_pern_fused_host(
 // Per-tensor scale (pert): scale is a single float per matrix
 // ============================================================================
 
-template<int VL, int K_SPLIT>
+template<typename InputT, typename OutputT, int VL, int K_SPLIT>
 struct GEMV_fp8_pert_kernel {
-    const fp16*    input;
+    const InputT*  input;
     const uint8_t* weight;
     const float*   scale_ptr;  // device pointer — no host sync
-    fp16*          output;
+    OutputT*       output;
     int N, K;
     int fp8_mode;
 
@@ -320,7 +343,7 @@ struct GEMV_fp8_pert_kernel {
         simd<float, VL> acc = 0.0f;
 
         for (int k = ks; k < ks + kp; k += VL) {
-            simd<fp16, VL> iv = block_load<fp16, VL>(input + k);
+            simd<InputT, VL> iv = block_load<InputT, VL>(input + k);
             simd<float, VL> input_f = iv;
 
             simd<uint8_t, VL> raw = block_load<uint8_t, VL>(weight + (size_t)n * K + k);
@@ -332,19 +355,20 @@ struct GEMV_fp8_pert_kernel {
         float my_sum = reduce<float>(acc, std::plus<>()) * *scale_ptr;
 
         if constexpr (K_SPLIT == 1) {
-            output[n] = fp16(my_sum);
+            output[n] = OutputT(my_sum);
         } else {
             slm_block_store<float, 1>(lid * sizeof(float), simd<float, 1>(my_sum));
             barrier();
             if (lid == 0) {
                 simd<float, K_SPLIT> parts = slm_block_load<float, K_SPLIT>(0);
-                output[n] = fp16(reduce<float>(parts, std::plus<>()));
+                output[n] = OutputT(reduce<float>(parts, std::plus<>()));
             }
         }
     }
 };
 
-inline void GEMV_fp8_pert_host(
+template<typename InputT, typename OutputT>
+inline void GEMV_fp8_pert_host_impl(
     uint8_t* input_data,
     uint8_t* weight_data,
     uint8_t* scale_data,  // device pointer to float scalar — no host sync
@@ -354,10 +378,10 @@ inline void GEMV_fp8_pert_host(
     int fp8_mode,
     sycl::queue& q) {
 
-    auto* p_in  = reinterpret_cast<const fp16*>(input_data);
+    auto* p_in  = reinterpret_cast<const InputT*>(input_data);
     auto* p_w   = reinterpret_cast<const uint8_t*>(weight_data);
     auto* p_sc  = reinterpret_cast<const float*>(scale_data);
-    auto* p_out = reinterpret_cast<fp16*>(output_data);
+    auto* p_out = reinterpret_cast<OutputT*>(output_data);
 
     int vl, ks;
     select_vl_ks(N, K, vl, ks);
@@ -368,7 +392,7 @@ inline void GEMV_fp8_pert_host(
     #define LAUNCH_PERT(V, S) \
         q.submit([&](sycl::handler& h) { \
             h.parallel_for(sycl::nd_range<1>(global, local), \
-                GEMV_fp8_pert_kernel<V, S>{p_in, p_w, p_sc, p_out, (int)N, (int)K, fp8_mode}); \
+                GEMV_fp8_pert_kernel<InputT, OutputT, V, S>{p_in, p_w, p_sc, p_out, (int)N, (int)K, fp8_mode}); \
         });
 
     if (vl == 512 && ks == 1) { LAUNCH_PERT(512, 1) }
@@ -385,6 +409,28 @@ inline void GEMV_fp8_pert_host(
     else { LAUNCH_PERT(128, 1) }
 
     #undef LAUNCH_PERT
+}
+
+inline void GEMV_fp8_pert_host(
+    uint8_t* input_data,
+    uint8_t* weight_data,
+    uint8_t* scale_data,
+    uint8_t* output_data,
+    uint32_t N,
+    uint32_t K,
+    bool input_is_bf16,
+    bool output_is_bf16,
+    int fp8_mode,
+    sycl::queue& q) {
+    if (input_is_bf16 && output_is_bf16) {
+        GEMV_fp8_pert_host_impl<bf16, bf16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+    } else if (input_is_bf16) {
+        GEMV_fp8_pert_host_impl<bf16, fp16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+    } else if (output_is_bf16) {
+        GEMV_fp8_pert_host_impl<fp16, bf16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+    } else {
+        GEMV_fp8_pert_host_impl<fp16, fp16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+    }
 }
 
 // ============================================================================
