@@ -33,30 +33,27 @@ def test_correctness():
 
     print("\n--- Fused Add RMSNorm Correctness ---")
     shapes = [512, 1024, 2048, 4096]
+    dtypes = [torch.float16, torch.bfloat16]
     torch.manual_seed(42)
     eps = 1e-6
-    for K in shapes:
-        hidden = torch.randn(1, K, dtype=torch.float16, device=device)
-        residual = torch.randn(1, K, dtype=torch.float16, device=device)
-        norm_weight = torch.randn(K, dtype=torch.float16, device=device) * 0.1
-        hidden_out = hidden.clone()
-        res_fp8 = residual.clone()
+    for dtype in dtypes:
+        for K in shapes:
+            hidden = torch.randn(1, K, dtype=dtype, device=device)
+            residual = torch.randn(1, K, dtype=dtype, device=device)
+            norm_weight = torch.randn(K, dtype=dtype, device=device) * 0.1
+            hidden_out = hidden.clone()
+            res_fp8 = residual.clone()
 
-        esimd_fused_add_rms_norm_batched(hidden_out, res_fp8, norm_weight, eps)
-        torch.xpu.synchronize()
+            esimd_fused_add_rms_norm_batched(hidden_out, res_fp8, norm_weight, eps)
+            torch.xpu.synchronize()
 
-        ref_residual, ref_normed = ref_fused_add_rms_norm_batched_fp16(
-            hidden, residual, norm_weight, eps)
+            ref_residual, ref_normed = ref_fused_add_rms_norm_batched_fp16(
+                hidden, residual, norm_weight, eps)
 
-        # # Check residual update
-        # res_diff = (res_fp8.cpu().float() - ref_residual.float()).abs()
-        # assert res_diff.max().item() < 0.01, \
-        #     f"Residual diff: {res_diff.max().item():.4f}"
-
-        # Check normed output
-        norm_diff = (hidden_out.cpu().float() - ref_normed.float()).abs()
-        assert norm_diff.max().item() < 0.1, \
-            f"Normed diff: {norm_diff.max().item():.4f}"
+            # Check normed output
+            norm_diff = (hidden_out.cpu().float() - ref_normed.float()).abs()
+            assert norm_diff.max().item() < 0.1, \
+                f"dtype={dtype}, K={K}, normed diff: {norm_diff.max().item():.4f}"
 
 
 

@@ -99,11 +99,29 @@ at::Tensor esimd_fused_add_rms_norm_batched(
     int K = (int)hidden_states.size(-1);
     auto& dpcpp_queue = get_device_queue(hidden_states);
 
+    TORCH_CHECK(
+        hidden_states.scalar_type() == at::ScalarType::Half ||
+            hidden_states.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_fused_add_rms_norm_batched: hidden_states must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        residual.scalar_type() == hidden_states.scalar_type(),
+        "esimd_fused_add_rms_norm_batched: residual must match hidden_states dtype"
+    );
+    TORCH_CHECK(
+        weight.scalar_type() == hidden_states.scalar_type(),
+        "esimd_fused_add_rms_norm_batched: weight must match hidden_states dtype"
+    );
+
     fused_add_rms_norm_batched_host(
-        reinterpret_cast<fp16*>(hidden_states.data_ptr()),
-        reinterpret_cast<fp16*>(residual.data_ptr()),
-        reinterpret_cast<const fp16*>(weight.data_ptr()),
-        rows, K, (float)eps, dpcpp_queue);
+        reinterpret_cast<uint8_t*>(hidden_states.data_ptr()),
+        reinterpret_cast<uint8_t*>(residual.data_ptr()),
+        reinterpret_cast<const uint8_t*>(weight.data_ptr()),
+        rows,
+        K,
+        (float)eps,
+        hidden_states.scalar_type() == at::ScalarType::BFloat16,
+        dpcpp_queue);
 
     return hidden_states;
 }

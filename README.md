@@ -1,15 +1,23 @@
 # custom-esimd-kernels-vllm
 
-这个仓库当前保留的是一个最小化的 XPU SYCL 扩展，只导出一个算子：`esimd_gemv_fp8`。
+这个仓库当前保留的是一个最小化的 XPU SYCL 扩展，当前导出以下几个算子：
+
+- `esimd_gemv_fp8_pern`
+- `esimd_gemv_fp8_pert`
+- `esimd_gemm_fp8_pert`
+- `esimd_fused_add_rms_norm_batched`
+
+其中 `esimd_fused_add_rms_norm_batched` 支持 `fp16` 和 `bf16`。它的 dtype 判断方式不是靠 Python 侧额外传字符串或枚举，而是直接在 XPU 入口里根据 `hidden_states.scalar_type()` 判定；`residual` 和 `weight` 必须与 `hidden_states` 保持同 dtype。
 
 ## 目录说明
 
 - `setup.py`：编译入口。
 - `esimd_build_extention.py`：本地 BuildExtension，负责调用 PyTorch 的扩展编译流程。
-- `csrc/xpu/esimd_kernel.sycl`：`esimd_gemv_fp8_*` 的 SYCL 入口实现。
+- `csrc/xpu/esimd_kernel.sycl`：`esimd_gemv_fp8_*` 和 `esimd_fused_add_rms_norm_batched` 的 SYCL 入口实现。
 - `csrc/xpu/torch_extension.cc`：PyTorch dispatcher 注册。
 - `python/custom_esimd_kernels_vllm/`：Python 导入与包装层。
 - `tests/test_gemv_fp8.py`：最小测试入口。
+- `tests/test_fused_add_rms_norm_batched_fp8.py`：fused residual add + RMSNorm 的正确性与性能测试。
 
 ## 环境要求
 
