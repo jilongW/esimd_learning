@@ -66,3 +66,20 @@ def esimd_gemm_fp8_pert(
         weight_scale,
         output,
     )
+
+def esimd_resadd_norm_gemv_fp8_pert(
+    hidden_states: torch.Tensor,
+    residual: torch.Tensor,
+    norm_weight: torch.Tensor,
+    gemv_weight: torch.Tensor,
+    gemv_scale: torch.Tensor,
+    output: torch.Tensor,
+    normed_out: torch.Tensor,
+    eps: float,
+) -> torch.Tensor:
+    """Fused ResidualAdd + RMSNorm + FP8 GEMV.
+    
+    """
+    return _ops.esimd_resadd_norm_gemv_fp8_pert(
+        hidden_states, residual, norm_weight,
+        gemv_weight, gemv_scale, output, normed_out, eps)

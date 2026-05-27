@@ -8,6 +8,7 @@
 
 #include "esimd_kernels/fp8_GEMV_v2.h"
 #include "esimd_kernels/fused_add_rms_norm_batched.h"
+#include "esimd_kernels/resadd_norm_gemv_fused.h"
 
 #define EXTRACT_PTR(var, tensor) auto var = reinterpret_cast<uint8_t*>(tensor.data_ptr())
 
@@ -124,4 +125,46 @@ at::Tensor esimd_fused_add_rms_norm_batched(
         dpcpp_queue);
 
     return hidden_states;
+}
+
+// ---- Fused ResidualAdd + RMSNorm + FP8 GEMV ----
+
+at::Tensor esimd_resadd_norm_gemv_fp8_pert(
+    at::Tensor hidden_states,  // [1, K] fp16
+    at::Tensor residual,       // [1, K] fp16 — updated in-place
+    at::Tensor norm_weight,    // [K] fp16 — Gemma (w+1.0)
+    at::Tensor gemv_weight,    // [N, K] FP8
+    at::Tensor gemv_scale,     // [1] or [2] float32
+    at::Tensor output,         // [1, N] fp16 — router logits
+    at::Tensor normed_out,     // [1, K] fp16 — normed hidden for experts
+    double eps)
+{
+    int N = (int)gemv_weight.size(0);
+    int K = (int)gemv_weight.size(1);
+    int fp8_mode = get_fp8_mode(gemv_weight);
+    int gemv_scale_count = (int)gemv_scale.numel();
+
+    TORCH_CHECK(
+        gemv_scale.scalar_type() == at::ScalarType::Float,
+        "esimd_resadd_norm_gemv_fp8_pert: gemv_scale must be float32"
+    );
+    TORCH_CHECK(
+        gemv_scale_count == 1 || gemv_scale_count == 2,
+        "esimd_resadd_norm_gemv_fp8_pert: gemv_scale must have 1 or 2 elements"
+    );
+
+    auto& dpcpp_queue = get_device_queue(hidden_states);
+
+    resadd_norm_gemv_fp8_pert_host(
+        reinterpret_cast<fp16*>(hidden_states.data_ptr()),
+        reinterpret_cast<fp16*>(residual.data_ptr()),
+        reinterpret_cast<const fp16*>(norm_weight.data_ptr()),
+        reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+        gemv_scale.data_ptr<float>(),
+        reinterpret_cast<fp16*>(output.data_ptr()),
+        reinterpret_cast<fp16*>(normed_out.data_ptr()),
+        N, K, gemv_scale_count, (float)eps, fp8_mode,
+        dpcpp_queue);
+
+    return output;
 }

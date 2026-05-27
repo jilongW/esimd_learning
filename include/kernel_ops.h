@@ -28,3 +28,9 @@ at::Tensor esimd_fused_add_rms_norm_batched(
 at::Tensor esimd_gemm_fp8_pert(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
     at::Tensor output);
+
+// Fused ResidualAdd + RMSNorm + FP8 GEMV
+at::Tensor esimd_resadd_norm_gemv_fp8_pert(
+    at::Tensor hidden_states, at::Tensor residual, at::Tensor norm_weight,
+    at::Tensor gemv_weight, at::Tensor gemv_scale, at::Tensor output, at::Tensor normed_out,
+    double eps);
