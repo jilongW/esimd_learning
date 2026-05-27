@@ -40,26 +40,25 @@ at::Tensor esimd_gemm_fp8_pert(
     int64_t K = weight.size(1);
     int64_t N = weight.size(0);
 
-    at::Tensor kernel_input = input;
-    at::Tensor kernel_output = output;
+    EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
+    EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
+    auto& dpcpp_queue = get_device_queue(input);
     if (input.scalar_type() == at::ScalarType::BFloat16) {
-        kernel_input = input.to(at::ScalarType::Half);
-        kernel_output = at::empty({M, N}, output.options().dtype(at::ScalarType::Half));
-    }
-
-    EXTRACT_PTR(p_in, kernel_input); EXTRACT_PTR(p_w, weight);
-    EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, kernel_output);
-    auto& dpcpp_queue = get_device_queue(kernel_input);
-    GEMM_fp8_pert_dispatch(
-        reinterpret_cast<const fp16*>(p_in),
-        reinterpret_cast<const uint8_t*>(p_w),
-        reinterpret_cast<const float*>(p_sc),
-        reinterpret_cast<fp16*>(p_out),
-        (uint32_t)M, (uint32_t)N, (uint32_t)K,
-        get_fp8_mode(weight), dpcpp_queue);
-
-    if (input.scalar_type() == at::ScalarType::BFloat16) {
-        output.copy_(kernel_output);
+        GEMM_fp8_pert_dispatch(
+            reinterpret_cast<const bf16*>(p_in),
+            reinterpret_cast<const uint8_t*>(p_w),
+            reinterpret_cast<const float*>(p_sc),
+            reinterpret_cast<bf16*>(p_out),
+            (uint32_t)M, (uint32_t)N, (uint32_t)K,
+            get_fp8_mode(weight), dpcpp_queue);
+    } else {
+        GEMM_fp8_pert_dispatch(
+            reinterpret_cast<const fp16*>(p_in),
+            reinterpret_cast<const uint8_t*>(p_w),
+            reinterpret_cast<const float*>(p_sc),
+            reinterpret_cast<fp16*>(p_out),
+            (uint32_t)M, (uint32_t)N, (uint32_t)K,
+            get_fp8_mode(weight), dpcpp_queue);
     }
     return output;
 }

@@ -3,11 +3,13 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
 #include <sycl/ext/intel/esimd/xmx/dpas.hpp>
+#include <type_traits>
 
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::esimd::xmx;
 using namespace sycl;
 using fp16 = sycl::half;
+using bf16 = sycl::ext::oneapi::bfloat16;
 
 // ============================================================================
 // FP8 Per-Tensor GEMM: M=1~64 extension of GEMV
@@ -107,12 +109,12 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
 // nd_range<2>({N*K_SPLIT, M}, {K_SPLIT, 1})
 // Each WG handles one (n, m) output element with K_SPLIT threads
 // ============================================================================
-template<int VL, int K_SPLIT>
+template<typename io_t, int VL, int K_SPLIT>
 struct GEMV_fp8_pert_batched_kernel {
-    const fp16*    input;      // [M, K]
+    const io_t*    input;      // [M, K]
     const uint8_t* weight;     // [N, K]
     const float*   scale_ptr;  // scalar
-    fp16*          output;     // [M, N]
+    io_t*          output;     // [M, N]
     int M, N, K;
     int fp8_mode;
 
@@ -132,7 +134,7 @@ struct GEMV_fp8_pert_batched_kernel {
         simd<float, VL> acc = 0.0f;
 
         for (int k = ks; k < ks + kp; k += VL) {
-            simd<fp16, VL> iv = block_load<fp16, VL>(input + (size_t)m * K + k);
+            simd<io_t, VL> iv = block_load<io_t, VL>(input + (size_t)m * K + k);
             simd<float, VL> input_f = iv;
 
             simd<uint8_t, VL> raw = block_load<uint8_t, VL>(weight + (size_t)n * K + k);
@@ -144,13 +146,13 @@ struct GEMV_fp8_pert_batched_kernel {
         float my_sum = reduce<float>(acc, std::plus<>()) * *scale_ptr;
 
         if constexpr (K_SPLIT == 1) {
-            output[(size_t)m * N + n] = fp16(my_sum);
+            output[(size_t)m * N + n] = io_t(my_sum);
         } else {
             slm_block_store<float, 1>(lid * sizeof(float), simd<float, 1>(my_sum));
             barrier();
             if (lid == 0) {
                 simd<float, K_SPLIT> parts = slm_block_load<float, K_SPLIT>(0);
-                output[(size_t)m * N + n] = fp16(reduce<float>(parts, std::plus<>()));
+                output[(size_t)m * N + n] = io_t(reduce<float>(parts, std::plus<>()));
             }
         }
     }
@@ -162,12 +164,12 @@ struct GEMV_fp8_pert_batched_kernel {
 // Each single-thread WG handles output[m_start:m_start+TILE_M, n]
 // Weight row loaded once, reused across TILE_M input rows
 // ============================================================================
-template<int VL, int TILE_M>
+template<typename io_t, int VL, int TILE_M>
 struct GEMM_fp8_pert_ws_kernel {
-    const fp16*    input;      // [M, K]
+    const io_t*    input;      // [M, K]
     const uint8_t* weight;     // [N, K]
     const float*   scale_ptr;  // scalar
-    fp16*          output;     // [M, N]
+    io_t*          output;     // [M, N]
     int M, N, K;
     int fp8_mode;
 
@@ -190,7 +192,7 @@ struct GEMM_fp8_pert_ws_kernel {
             #pragma unroll
             for (int i = 0; i < TILE_M; i++) {
                 if (m_start + i < M) {
-                    simd<fp16, VL> iv = block_load<fp16, VL>(
+                    simd<io_t, VL> iv = block_load<io_t, VL>(
                         input + (size_t)(m_start + i) * K + k);
                     acc[i] += simd<float, VL>(iv) * wf;
                 }
@@ -203,7 +205,7 @@ struct GEMM_fp8_pert_ws_kernel {
         for (int i = 0; i < TILE_M; i++) {
             if (m_start + i < M) {
                 float sum = reduce<float>(acc[i], std::plus<>()) * s;
-                output[(size_t)(m_start + i) * N + n] = fp16(sum);
+                output[(size_t)(m_start + i) * N + n] = io_t(sum);
             }
         }
     }
@@ -464,6 +466,30 @@ fp8_tile_to_vnni_fast(simd<uint8_t, 256> raw) {
     }
 
     return b_vnni_u16.template bit_cast_view<fp16>().read();
+}
+
+template<typename io_t>
+SYCL_ESIMD_FUNCTION inline simd<io_t, 256>
+fp8_tile_to_vnni_typed(simd<uint8_t, 256> raw, int fp8_mode) {
+    if constexpr (std::is_same_v<io_t, fp16>) {
+        return (fp8_mode == 0) ? fp8_tile_to_vnni_fast(raw)
+                               : fp8_tile_to_vnni(raw, fp8_mode);
+    } else {
+        simd<float, 256> w_fp = fp8_dequant<256>(raw, fp8_mode);
+        simd<io_t, 256> w_io = convert<io_t>(w_fp);
+        simd<uint16_t, 256> w_u16 = w_io.template bit_cast_view<uint16_t>().read();
+        simd<uint16_t, 256> b_vnni_u16;
+
+        #pragma unroll
+        for (int kp = 0; kp < 8; kp++) {
+            simd<uint16_t, 16> lo = w_u16.template select<16, 16>(2 * kp);
+            simd<uint16_t, 16> hi = w_u16.template select<16, 16>(2 * kp + 1);
+            b_vnni_u16.template select<16, 2>(kp * 32) = lo;
+            b_vnni_u16.template select<16, 2>(kp * 32 + 1) = hi;
+        }
+
+        return b_vnni_u16.template bit_cast_view<io_t>().read();
+    }
 }
 
 // --- Optimized FP8→FP16 dequant (E4M3 only, combined shift+add) ---
@@ -1150,12 +1176,12 @@ struct FP8_GEMM_DPAS_V5 {
 // V7 splits K across threads: each thread loads DIFFERENT weight/input data,
 // then reduces partial sums via SLM. More threads = better latency hiding.
 // ============================================================================
-template<int K_THREADS, int M_TILES>
+template<typename io_t, int K_THREADS, int M_TILES>
 struct FP8_GEMM_DPAS_V7 {
-    const fp16*    input;
+    const io_t*    input;
     const uint8_t* weight;
     const float*   scale_ptr;
-    fp16*          output;
+    io_t*          output;
     int M, N, K;
     int fp8_mode;
 
@@ -1183,10 +1209,10 @@ struct FP8_GEMM_DPAS_V7 {
         #pragma unroll
         for (int i = 0; i < M_TILES; i++) acc[i] = 0.0f;
 
-        // 2D payload for input A: [M, K] fp16
-        const uint32_t surfW_A = (uint32_t)K * 2u - 1u;
+        // 2D payload for input A: [M, K]
+        const uint32_t surfW_A = (uint32_t)K * (uint32_t)sizeof(io_t) - 1u;
         const uint32_t surfH_A = (uint32_t)M - 1u;
-        xesimd::config_2d_mem_access<fp16, 16, 8, 1> payA(
+        xesimd::config_2d_mem_access<io_t, 16, 8, 1> payA(
             input, surfW_A, surfH_A, surfW_A, 0u, 0u);
 
         // 2D payload for weight B: [N, K] uint8, wide load
@@ -1219,19 +1245,17 @@ struct FP8_GEMM_DPAS_V7 {
                         w_raw.template select<16, 1>(ni * 64 + sub * 16);
                 }
 
-                simd<fp16, 256> b_tile = (fp8_mode == 0) ?
-                    fp8_tile_to_vnni_fast(sub_raw) :
-                    fp8_tile_to_vnni(sub_raw, fp8_mode);
+                simd<io_t, 256> b_tile = fp8_tile_to_vnni_typed<io_t>(sub_raw, fp8_mode);
 
                 int k = k_base + sub * K_SUB;
                 payA.set_x((uint32_t)k);
                 #pragma unroll
                 for (int m = 0; m < M_TILES; m++) {
                     payA.set_y((uint32_t)(m * 8));
-                    simd<fp16, 128> a = xesimd::lsc_load_2d<fp16, 16, 8, 1,
+                    simd<io_t, 128> a = xesimd::lsc_load_2d<io_t, 16, 8, 1,
                         false, false,
                         xesimd::cache_hint::cached, xesimd::cache_hint::cached>(payA);
-                    acc[m] = dpas<8, 8, float, float, fp16, fp16>(acc[m], b_tile, a);
+                    acc[m] = dpas<8, 8, float, float, io_t, io_t>(acc[m], b_tile, a);
                 }
             }
         }
@@ -1249,9 +1273,9 @@ struct FP8_GEMM_DPAS_V7 {
                     int row = m * 8 + mi;
                     if (row < M) {
                         simd<float, 16> row_f = scaled.select<16, 1>(mi * 16);
-                        simd<fp16, 16> out_row = convert<fp16>(row_f);
+                        simd<io_t, 16> out_row = convert<io_t>(row_f);
                         if (full_n)
-                            block_store<fp16, 16>(output + (size_t)row * N + n_start, out_row);
+                            block_store<io_t, 16>(output + (size_t)row * N + n_start, out_row);
                         else
                             for (int ni = 0; ni < n_valid; ni++)
                                 output[(size_t)row * N + n_start + ni] = out_row[ni];
@@ -1286,9 +1310,9 @@ struct FP8_GEMM_DPAS_V7 {
                             int row = m * 8 + mi;
                             if (row < M) {
                                 simd<float, 16> row_f = scaled.select<16, 1>(mi * 16);
-                                simd<fp16, 16> out_row = convert<fp16>(row_f);
+                                simd<io_t, 16> out_row = convert<io_t>(row_f);
                                 if (full_n)
-                                    block_store<fp16, 16>(output + (size_t)row * N + n_start, out_row);
+                                    block_store<io_t, 16>(output + (size_t)row * N + n_start, out_row);
                                 else
                                     for (int ni = 0; ni < n_valid; ni++)
                                         output[(size_t)row * N + n_start + ni] = out_row[ni];
@@ -1325,9 +1349,9 @@ struct FP8_GEMM_DPAS_V7 {
                             int row = m * 8 + mi;
                             if (row < M) {
                                 simd<float, 16> row_f = scaled.select<16, 1>(mi * 16);
-                                simd<fp16, 16> out_row = convert<fp16>(row_f);
+                                simd<io_t, 16> out_row = convert<io_t>(row_f);
                                 if (full_n)
-                                    block_store<fp16, 16>(output + (size_t)row * N + n_start, out_row);
+                                    block_store<io_t, 16>(output + (size_t)row * N + n_start, out_row);
                                 else
                                     for (int ni = 0; ni < n_valid; ni++)
                                         output[(size_t)row * N + n_start + ni] = out_row[ni];
@@ -1341,12 +1365,12 @@ struct FP8_GEMM_DPAS_V7 {
 };
 
 // Host dispatcher for DPAS V7
-template<int K_THREADS, int M_TILES>
+template<typename io_t, int K_THREADS, int M_TILES>
 inline void dpas_v7_gemm_fp8_pert_host(
-    const fp16*    input,
+    const io_t*    input,
     const uint8_t* weight,
     const float*   scale_ptr,
-    fp16*          output,
+    io_t*          output,
     uint32_t M, uint32_t N, uint32_t K,
     int fp8_mode,
     sycl::queue& q) {
@@ -1356,16 +1380,17 @@ inline void dpas_v7_gemm_fp8_pert_host(
     q.submit([&](sycl::handler& h) {
         h.parallel_for(
             sycl::nd_range<1>({(size_t)(num_wg * K_THREADS)}, {(size_t)K_THREADS}),
-            FP8_GEMM_DPAS_V7<K_THREADS, M_TILES>{
+            FP8_GEMM_DPAS_V7<io_t, K_THREADS, M_TILES>{
                 input, weight, scale_ptr, output,
                 (int)M, (int)N, (int)K, fp8_mode});
     });
 }
 
 // V7 auto-dispatch: choose K_THREADS and M_TILES
+template<typename io_t>
 inline void dpas_v7_auto_dispatch(
-    const fp16* input, const uint8_t* weight, const float* scale_ptr,
-    fp16* output, uint32_t M, uint32_t N, uint32_t K,
+    const io_t* input, const uint8_t* weight, const float* scale_ptr,
+    io_t* output, uint32_t M, uint32_t N, uint32_t K,
     int fp8_mode, sycl::queue& q) {
     int m_tiles = ((int)M + 7) / 8;
     int n_wgs = ((int)N + 15) / 16;
@@ -1376,7 +1401,7 @@ inline void dpas_v7_auto_dispatch(
     while (k_threads > 1 && (K % (k_threads * 64) != 0)) k_threads--;
     if (k_threads == 3) k_threads = 2;
 
-    #define V7_DISPATCH(KT, MT) dpas_v7_gemm_fp8_pert_host<KT, MT>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q)
+    #define V7_DISPATCH(KT, MT) dpas_v7_gemm_fp8_pert_host<io_t, KT, MT>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q)
     if (k_threads >= 4) {
         if      (m_tiles <= 1) V7_DISPATCH(4, 1);
         else if (m_tiles <= 2) V7_DISPATCH(4, 2);
@@ -1435,6 +1460,28 @@ fp8_e4m3_pair_to_vnni(simd<uint32_t, 16> b0, simd<uint32_t, 16> b1_shifted) {
 
     // Result: packed uint32 with {dequant(lo), dequant(hi)} = VNNI format!
     return packed;
+}
+
+SYCL_ESIMD_FUNCTION inline simd<uint32_t, 16>
+fp8_e4m3_pair_to_vnni_bf16(simd<uint32_t, 16> b0, simd<uint32_t, 16> b1) {
+    simd<uint16_t, 16> b0_u16 = convert<uint16_t>(b0);
+    simd<uint16_t, 16> b1_u16 = convert<uint16_t>(b1);
+
+    simd<uint16_t, 16> b0_sign = (b0_u16 >> 7) & 1;
+    simd<uint16_t, 16> b0_exp = (b0_u16 >> 3) & 0xF;
+    simd<uint16_t, 16> b0_mant = b0_u16 & 0x7;
+    simd<uint16_t, 16> b0_bf16 =
+        (b0_sign << 15) | ((b0_exp + 120) << 7) | (b0_mant << 4);
+    b0_bf16.merge(b0_sign << 15, b0_exp == 0);
+
+    simd<uint16_t, 16> b1_sign = (b1_u16 >> 7) & 1;
+    simd<uint16_t, 16> b1_exp = (b1_u16 >> 3) & 0xF;
+    simd<uint16_t, 16> b1_mant = b1_u16 & 0x7;
+    simd<uint16_t, 16> b1_bf16 =
+        (b1_sign << 15) | ((b1_exp + 120) << 7) | (b1_mant << 4);
+    b1_bf16.merge(b1_sign << 15, b1_exp == 0);
+
+    return convert<uint32_t>(b0_bf16) | (convert<uint32_t>(b1_bf16) << 16);
 }
 
 namespace xesimd = sycl::ext::intel::experimental::esimd;
@@ -2927,12 +2974,12 @@ inline void e5m2_m12_special_tload_pipe_gemm_fp8_pert_host(
     });
 }
 
-template<int K_THREADS, int M_TILES>
+template<typename io_t, int K_THREADS, int M_TILES>
 struct FP8_GEMM_DPAS_V9 {
-    const fp16*    input;
+    const io_t*    input;
     const uint8_t* weight;
     const float*   scale_ptr;
-    fp16*          output;
+    io_t*          output;
     int M, N, K;
 
     void operator()(sycl::nd_item<1> item) const SYCL_ESIMD_KERNEL {
@@ -2956,16 +3003,16 @@ struct FP8_GEMM_DPAS_V9 {
         #pragma unroll
         for (int i = 0; i < M_TILES; i++) acc[i] = 0.0f;
 
-        // 2D payload for input A: [M, K] fp16
-        const uint32_t surfW_A = (uint32_t)K * 2u - 1u;
+        // 2D payload for input A: [M, K]
+        const uint32_t surfW_A = (uint32_t)K * (uint32_t)sizeof(io_t) - 1u;
         const uint32_t surfH_A = (uint32_t)M - 1u;
-        xesimd::config_2d_mem_access<fp16, 16, 8, 1> payA(
+        xesimd::config_2d_mem_access<io_t, 16, 8, 1> payA(
             input, surfW_A, surfH_A, surfW_A, 0u, 0u);
         // Wider payload for merged 16-row input loads (2 M-tiles at once)
-        xesimd::config_2d_mem_access<fp16, 16, 16, 1> payA16(
+        xesimd::config_2d_mem_access<io_t, 16, 16, 1> payA16(
             input, surfW_A, surfH_A, surfW_A, 0u, 0u);
         // Super-merged payload for 32-row input loads (4 M-tiles at once)
-        xesimd::config_2d_mem_access<fp16, 16, 32, 1> payA32(
+        xesimd::config_2d_mem_access<io_t, 16, 32, 1> payA32(
             input, surfW_A, surfH_A, surfW_A, 0u, 0u);
 
         // 2D payload for weight B: [N, K] uint8
@@ -3021,20 +3068,30 @@ struct FP8_GEMM_DPAS_V9 {
 
                     // k_pair 0: bytes 0, 1
                     simd<uint32_t, 16> b0 = group & 0xFF;
-                    simd<uint32_t, 16> b1 = (group & 0xFF00) << 8;
-                    b_vnni_u32.template select<16, 1>(col * 2 * 16) =
-                        fp8_e4m3_pair_to_vnni(b0, b1);
+                    simd<uint32_t, 16> b1 = (group >> 8) & 0xFF;
+                    if constexpr (std::is_same_v<io_t, bf16>) {
+                        b_vnni_u32.template select<16, 1>(col * 2 * 16) =
+                            fp8_e4m3_pair_to_vnni_bf16(b0, b1);
+                    } else {
+                        b_vnni_u32.template select<16, 1>(col * 2 * 16) =
+                            fp8_e4m3_pair_to_vnni(b0, (group & 0xFF00) << 8);
+                    }
 
                     // k_pair 1: bytes 2, 3
                     simd<uint32_t, 16> group_hi = group >> 16;
                     simd<uint32_t, 16> b2 = group_hi & 0xFF;
-                    simd<uint32_t, 16> b3 = (group_hi & 0xFF00) << 8;
-                    b_vnni_u32.template select<16, 1>((col * 2 + 1) * 16) =
-                        fp8_e4m3_pair_to_vnni(b2, b3);
+                    simd<uint32_t, 16> b3 = (group_hi >> 8) & 0xFF;
+                    if constexpr (std::is_same_v<io_t, bf16>) {
+                        b_vnni_u32.template select<16, 1>((col * 2 + 1) * 16) =
+                            fp8_e4m3_pair_to_vnni_bf16(b2, b3);
+                    } else {
+                        b_vnni_u32.template select<16, 1>((col * 2 + 1) * 16) =
+                            fp8_e4m3_pair_to_vnni(b2, (group_hi & 0xFF00) << 8);
+                    }
                 }
 
-                simd<fp16, 256> b_tile =
-                    b_vnni_u32.template bit_cast_view<fp16>().read();
+                simd<io_t, 256> b_tile =
+                    b_vnni_u32.template bit_cast_view<io_t>().read();
 
                 // Load input and DPAS — use super-merged 32-row loads for M_TILES>=4
                 if constexpr (M_TILES >= 4) {
@@ -3042,13 +3099,13 @@ struct FP8_GEMM_DPAS_V9 {
                     #pragma unroll
                     for (int m = 0; m < M_TILES; m += 4) {
                         payA32.set_y((uint32_t)(m * 8));
-                        simd<fp16, 512> a4 = xesimd::lsc_load_2d<fp16, 16, 32, 1,
+                        simd<io_t, 512> a4 = xesimd::lsc_load_2d<io_t, 16, 32, 1,
                             false, false,
                             xesimd::cache_hint::cached, xesimd::cache_hint::cached>(payA32);
                         #pragma unroll
                         for (int mi = 0; mi < 4; mi++) {
-                            simd<fp16, 128> a = a4.template select<128, 1>(mi * 128);
-                            acc[m + mi] = dpas<8, 8, float, float, fp16, fp16>(acc[m + mi], b_tile, a);
+                            simd<io_t, 128> a = a4.template select<128, 1>(mi * 128);
+                            acc[m + mi] = dpas<8, 8, float, float, io_t, io_t>(acc[m + mi], b_tile, a);
                         }
                     }
                 } else if constexpr (M_TILES >= 2) {
@@ -3056,21 +3113,21 @@ struct FP8_GEMM_DPAS_V9 {
                     #pragma unroll
                     for (int m = 0; m < M_TILES; m += 2) {
                         payA16.set_y((uint32_t)(m * 8));
-                        simd<fp16, 256> a2 = xesimd::lsc_load_2d<fp16, 16, 16, 1,
+                        simd<io_t, 256> a2 = xesimd::lsc_load_2d<io_t, 16, 16, 1,
                             false, false,
                             xesimd::cache_hint::cached, xesimd::cache_hint::cached>(payA16);
-                        simd<fp16, 128> a0 = a2.template select<128, 1>(0);
-                        simd<fp16, 128> a1 = a2.template select<128, 1>(128);
-                        acc[m]   = dpas<8, 8, float, float, fp16, fp16>(acc[m],   b_tile, a0);
-                        acc[m+1] = dpas<8, 8, float, float, fp16, fp16>(acc[m+1], b_tile, a1);
+                        simd<io_t, 128> a0 = a2.template select<128, 1>(0);
+                        simd<io_t, 128> a1 = a2.template select<128, 1>(128);
+                        acc[m]   = dpas<8, 8, float, float, io_t, io_t>(acc[m],   b_tile, a0);
+                        acc[m+1] = dpas<8, 8, float, float, io_t, io_t>(acc[m+1], b_tile, a1);
                     }
                 } else {
                     payA.set_x((uint32_t)k_sub);
                     payA.set_y(0u);
-                    simd<fp16, 128> a = xesimd::lsc_load_2d<fp16, 16, 8, 1,
+                    simd<io_t, 128> a = xesimd::lsc_load_2d<io_t, 16, 8, 1,
                         false, false,
                         xesimd::cache_hint::cached, xesimd::cache_hint::cached>(payA);
-                    acc[0] = dpas<8, 8, float, float, fp16, fp16>(acc[0], b_tile, a);
+                    acc[0] = dpas<8, 8, float, float, io_t, io_t>(acc[0], b_tile, a);
                 }
             }
         }
@@ -3087,9 +3144,9 @@ struct FP8_GEMM_DPAS_V9 {
                     int row = m * 8 + mi;
                     if (row < M) {
                         simd<float, 16> row_f = scaled.select<16, 1>(mi * 16);
-                        simd<fp16, 16> out_row = convert<fp16>(row_f);
+                        simd<io_t, 16> out_row = convert<io_t>(row_f);
                         if (full_n)
-                            block_store<fp16, 16>(output + (size_t)row * N + n_start, out_row);
+                            block_store<io_t, 16>(output + (size_t)row * N + n_start, out_row);
                         else
                             for (int ni = 0; ni < n_valid; ni++)
                                 output[(size_t)row * N + n_start + ni] = out_row[ni];
@@ -3124,9 +3181,9 @@ struct FP8_GEMM_DPAS_V9 {
                         int row = m * 8 + mi;
                         if (row < M) {
                             simd<float, 16> row_f = scaled.select<16, 1>(mi * 16);
-                            simd<fp16, 16> out_row = convert<fp16>(row_f);
+                            simd<io_t, 16> out_row = convert<io_t>(row_f);
                             if (full_n)
-                                block_store<fp16, 16>(output + (size_t)row * N + n_start, out_row);
+                                block_store<io_t, 16>(output + (size_t)row * N + n_start, out_row);
                             else
                                 for (int ni = 0; ni < n_valid; ni++)
                                     output[(size_t)row * N + n_start + ni] = out_row[ni];
@@ -3673,12 +3730,12 @@ inline void dpas_v10_auto_dispatch(
 #endif // GEMM_EXPERIMENTAL — V13, V10
 
 // Host dispatcher for DPAS V9
-template<int K_THREADS, int M_TILES>
+template<typename io_t, int K_THREADS, int M_TILES>
 inline void dpas_v9_gemm_fp8_pert_host(
-    const fp16*    input,
+    const io_t*    input,
     const uint8_t* weight,
     const float*   scale_ptr,
-    fp16*          output,
+    io_t*          output,
     uint32_t M, uint32_t N, uint32_t K,
     sycl::queue& q) {
 
@@ -3687,16 +3744,17 @@ inline void dpas_v9_gemm_fp8_pert_host(
     q.submit([&](sycl::handler& h) {
         h.parallel_for(
             sycl::nd_range<1>({(size_t)(num_wg * K_THREADS)}, {(size_t)K_THREADS}),
-            FP8_GEMM_DPAS_V9<K_THREADS, M_TILES>{
+            FP8_GEMM_DPAS_V9<io_t, K_THREADS, M_TILES>{
                 input, weight, scale_ptr, output,
                 (int)M, (int)N, (int)K});
     });
 }
 
 // V9 auto-dispatch: choose K_THREADS and M_TILES
+template<typename io_t>
 inline void dpas_v9_auto_dispatch(
-    const fp16* input, const uint8_t* weight, const float* scale_ptr,
-    fp16* output, uint32_t M, uint32_t N, uint32_t K,
+    const io_t* input, const uint8_t* weight, const float* scale_ptr,
+    io_t* output, uint32_t M, uint32_t N, uint32_t K,
     sycl::queue& q) {
     int m_tiles = ((int)M + 7) / 8;
     int n_wgs = ((int)N + 15) / 16;
@@ -3704,7 +3762,7 @@ inline void dpas_v9_auto_dispatch(
     while (k_threads > 1 && (K % (k_threads * 64) != 0)) k_threads--;
     if (k_threads == 3) k_threads = 2;
 
-    #define V9_DISPATCH(KT, MT) dpas_v9_gemm_fp8_pert_host<KT, MT>(input, weight, scale_ptr, output, M, N, K, q)
+    #define V9_DISPATCH(KT, MT) dpas_v9_gemm_fp8_pert_host<io_t, KT, MT>(input, weight, scale_ptr, output, M, N, K, q)
     if (k_threads >= 4) {
         if      (m_tiles <= 1) V9_DISPATCH(4, 1);
         else if (m_tiles <= 2) V9_DISPATCH(4, 2);
@@ -3777,11 +3835,12 @@ inline void dpas_v2_gemm_fp8_pert_host(
 // ============================================================================
 
 // Regime A dispatcher: M=1~4, batched GEMV with K-split
+template<typename io_t>
 inline void batched_gemv_fp8_pert_host(
-    const fp16*    input,
+    const io_t*    input,
     const uint8_t* weight,
     const float*   scale_ptr,
-    fp16*          output,
+    io_t*          output,
     uint32_t M, uint32_t N, uint32_t K,
     int fp8_mode,
     sycl::queue& q) {
@@ -3799,7 +3858,7 @@ inline void batched_gemv_fp8_pert_host(
             h.parallel_for( \
                 sycl::nd_range<2>({(size_t)global0, (size_t)global1}, \
                                   {(size_t)local0, (size_t)local1}), \
-                GEMV_fp8_pert_batched_kernel<V, S>{ \
+                GEMV_fp8_pert_batched_kernel<io_t, V, S>{ \
                     input, weight, scale_ptr, output, \
                     (int)M, (int)N, (int)K, fp8_mode}); \
         });
@@ -3824,12 +3883,12 @@ inline void batched_gemv_fp8_pert_host(
 //   TM=8,  VL=128: 4KB accs — M=4~8, single M-tile
 //   TM=16, VL=128: 8KB accs — M=9~16, single M-tile
 //   TM=32, VL=64:  8KB accs — M=17~64, fewer M-tiles = fewer weight re-reads
-template<int VL, int TILE_M>
+template<typename io_t, int VL, int TILE_M>
 inline void ws_gemm_fp8_pert_host(
-    const fp16*    input,
+    const io_t*    input,
     const uint8_t* weight,
     const float*   scale_ptr,
-    fp16*          output,
+    io_t*          output,
     uint32_t M, uint32_t N, uint32_t K,
     int fp8_mode,
     sycl::queue& q) {
@@ -3839,7 +3898,7 @@ inline void ws_gemm_fp8_pert_host(
     q.submit([&](sycl::handler& h) {
         h.parallel_for(
             sycl::nd_range<2>({(size_t)N, (size_t)m_tiles}, {1, 1}),
-            GEMM_fp8_pert_ws_kernel<VL, TILE_M>{
+            GEMM_fp8_pert_ws_kernel<io_t, VL, TILE_M>{
                 input, weight, scale_ptr, output,
                 (int)M, (int)N, (int)K, fp8_mode});
     });
@@ -3918,12 +3977,12 @@ inline void dpas_v5_auto_dispatch(
 // SLM reduction merges partials across threads.
 // Weight (N*K bytes, e.g. 32KB for N=16 K=2048) stays in L3 across WGs.
 // ============================================================================
-template<int VL, int K_SPLIT, int MAX_N>
+template<typename io_t, int VL, int K_SPLIT, int MAX_N>
 struct GEMM_fp8_pert_mpar_kernel {
-    const fp16*    input;      // [M, K]
+    const io_t*    input;      // [M, K]
     const uint8_t* weight;     // [N, K]
     const float*   scale_ptr;
-    fp16*          output;     // [M, N]
+    io_t*          output;     // [M, N]
     int M, N, K;
     int fp8_mode;
 
@@ -3942,10 +4001,10 @@ struct GEMM_fp8_pert_mpar_kernel {
         // N accumulators
         simd<float, MAX_N> acc = 0.0f;
 
-        const fp16* in_row = input + (size_t)m * K;
+        const io_t* in_row = input + (size_t)m * K;
 
         for (int k = ks; k < ks + kp; k += VL) {
-            simd<fp16, VL> iv = block_load<fp16, VL>(in_row + k);
+            simd<io_t, VL> iv = block_load<io_t, VL>(in_row + k);
             simd<float, VL> input_f = iv;
 
             #pragma unroll
@@ -3963,9 +4022,9 @@ struct GEMM_fp8_pert_mpar_kernel {
 
         if constexpr (K_SPLIT == 1) {
             float s = *scale_ptr;
-            fp16* out_row = output + (size_t)m * N;
+            io_t* out_row = output + (size_t)m * N;
             for (int n = 0; n < N; n++)
-                out_row[n] = fp16(acc[n] * s);
+                out_row[n] = io_t(acc[n] * s);
         } else {
             // Store partials to SLM
             uint32_t slm_off = tid * MAX_N * (uint32_t)sizeof(float);
@@ -3989,74 +4048,87 @@ struct GEMM_fp8_pert_mpar_kernel {
                 }
                 float s = *scale_ptr;
                 total *= s;
-                fp16* out_row = output + (size_t)m * N;
-                simd<fp16, MAX_N> out_fp16 = convert<fp16>(total);
+                io_t* out_row = output + (size_t)m * N;
+                simd<io_t, MAX_N> out_values = convert<io_t>(total);
                 // Store N elements (scalar for safety with small N)
                 for (int n = 0; n < N; n++)
-                    out_row[n] = out_fp16[n];
+                    out_row[n] = out_values[n];
             }
         }
     }
 };
 
-template<int VL, int K_SPLIT, int MAX_N>
+template<typename io_t, int VL, int K_SPLIT, int MAX_N>
 inline void mpar_gemm_fp8_pert_host(
-    const fp16* input, const uint8_t* weight, const float* scale_ptr,
-    fp16* output, uint32_t M, uint32_t N, uint32_t K,
+    const io_t* input, const uint8_t* weight, const float* scale_ptr,
+    io_t* output, uint32_t M, uint32_t N, uint32_t K,
     int fp8_mode, sycl::queue& q) {
     q.submit([&](sycl::handler& h) {
         h.parallel_for(
             sycl::nd_range<1>({(size_t)(M * K_SPLIT)}, {(size_t)K_SPLIT}),
-            GEMM_fp8_pert_mpar_kernel<VL, K_SPLIT, MAX_N>{
+            GEMM_fp8_pert_mpar_kernel<io_t, VL, K_SPLIT, MAX_N>{
                 input, weight, scale_ptr, output,
                 (int)M, (int)N, (int)K, fp8_mode});
     });
 }
 
 // Direct-typed unified dispatcher (no uint8_t casts needed)
+template<typename io_t>
 inline void GEMM_fp8_pert_dispatch(
-    const fp16*    input,
+    const io_t*    input,
     const uint8_t* weight,
     const float*   scale_ptr,
-    fp16*          output,
+    io_t*          output,
     uint32_t M, uint32_t N, uint32_t K,
     int fp8_mode,
     sycl::queue& q) {
 
     if (M == 1) {
-        batched_gemv_fp8_pert_host(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        batched_gemv_fp8_pert_host<io_t>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
     } else if (N <= 16 && M >= 2) {
         // Tiny-N M-parallel: one WG per input row, K_SPLIT threads per WG.
         // Grid={M×K_SPLIT}. Weight (N*K bytes) in L3. Avoids N-parallel
         // underutilization that causes 2x cliff at M=9 in V7/WS kernels.
         // K_SPLIT chosen so K/K_SPLIT is divisible by VL=128.
         if (K >= 2048 && K % (8 * 128) == 0) {
-            mpar_gemm_fp8_pert_host<128, 8, 16>(
+            mpar_gemm_fp8_pert_host<io_t, 128, 8, 16>(
                 input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
         } else if (K % (4 * 128) == 0) {
-            mpar_gemm_fp8_pert_host<128, 4, 16>(
+            mpar_gemm_fp8_pert_host<io_t, 128, 4, 16>(
                 input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
         } else {
-            mpar_gemm_fp8_pert_host<128, 1, 16>(
+            mpar_gemm_fp8_pert_host<io_t, 128, 1, 16>(
                 input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        }
+    } else if constexpr (std::is_same_v<io_t, bf16>) {
+        if (M > 64) {
+            ws_gemm_fp8_pert_host<bf16, 128, 16>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        } else if (K % 64 == 0 && fp8_mode == 0) {
+            dpas_v9_auto_dispatch<bf16>(input, weight, scale_ptr, output, M, N, K, q);
+        } else if (K % 64 == 0) {
+            dpas_v7_auto_dispatch<bf16>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        } else if (M <= 8) {
+            ws_gemm_fp8_pert_host<bf16, 128, 8>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        } else {
+            ws_gemm_fp8_pert_host<bf16, 128, 16>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
         }
     } else if (M > 64) {
         // V7/V9 DPAS kernels cap at M_TILES=8 (M=64). For M>64 they silently
         // only compute rows [0..63] and leave rows [64..M-1] uninitialized,
         // which propagates NaN through subsequent layers. Fall back to WS
         // which has a real 2D grid and per-row bounds check.
-        ws_gemm_fp8_pert_host<128, 16>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        ws_gemm_fp8_pert_host<fp16, 128, 16>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
     } else if (K % 64 == 0 && fp8_mode == 0) {
         // V9: Transposed load + fused dequant-VNNI (E4M3 only, best for M>=2)
-        dpas_v9_auto_dispatch(input, weight, scale_ptr, output, M, N, K, q);
+        dpas_v9_auto_dispatch<fp16>(input, weight, scale_ptr, output, M, N, K, q);
     } else if (K % 64 == 0 && N >= 1024) {
         // V7: K-split multi-thread WG for E5M2 or when V9 not applicable
-        dpas_v7_auto_dispatch(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        dpas_v7_auto_dispatch<fp16>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
     } else if (M <= 3) {
-        batched_gemv_fp8_pert_host(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        batched_gemv_fp8_pert_host<fp16>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
     } else if (M <= 8) {
-        ws_gemm_fp8_pert_host<128, 8>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        ws_gemm_fp8_pert_host<fp16, 128, 8>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
     } else {
-        ws_gemm_fp8_pert_host<128, 16>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        ws_gemm_fp8_pert_host<fp16, 128, 16>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
     }
 }
