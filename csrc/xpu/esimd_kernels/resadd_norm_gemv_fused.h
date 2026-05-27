@@ -25,6 +25,8 @@
 #pragma once
 #include "utils.h"
 
+namespace xesimd = sycl::ext::intel::experimental::esimd;
+
 template<int VL>
 SYCL_ESIMD_FUNCTION inline simd<float, VL> fp8_dequant_rng(
     simd<uint8_t, VL> raw, int fp8_mode) {
@@ -48,60 +50,28 @@ SYCL_ESIMD_FUNCTION inline simd<float, VL> fp8_dequant_rng(
     return simd<float, VL>(wh);
 }
 
-/* ================================================================
- * Kernel: Fused ResidualAdd + RMSNorm + FP8 GEMV (per-tensor scale)
- *
- * Two-pass approach:
- *   Pass 1: Load hidden+residual, compute residual_add, accumulate
- *           sum-of-squares for RMS, store normed chunks to registers.
- *   Pass 2 (fused with pass 1 second half): GEMV dot product.
- *
- * Since we need the full RMS before normalizing, we do:
- *   Loop 1 (K/VL iters): load h+r, add, compute partial sum_sq
- *   Reduce sum_sq → inv_rms
- *   Loop 2 (K/VL iters): normalize stored residual, load weight, FMA
- * ================================================================ */
-struct ResAddNormGEMV_fp8_pert_kernel {
-    fp16*          hidden_ptr;   // [1, K] — input (read-only for this kernel)
+struct ResAddNormOnce_fp8_kernel {
+    const fp16*    hidden_ptr;   // [1, K] — input
     fp16*          residual_ptr; // [1, K] — updated in-place
     const fp16*    norm_w_ptr;   // [K] — Gemma norm weight (w+1.0)
-    const uint8_t* gemv_weight;  // [N, K] FP8
-    const float*   gemv_scale;   // [1] or [2]
-    fp16*          output;       // [1, N] — router logits
-    fp16*          normed_out;   // [1, K] — normed hidden_states (for MoE experts)
-    int N, K;
-    int gemv_scale_count;
+    fp16*          normed_out;   // [1, K] — normed hidden_states
+    int K;
     float eps;
-    int fp8_mode;
 
-    SYCL_ESIMD_FUNCTION float gemv_scale_for_n(int n) const {
-        if (gemv_scale_count == 1) {
-            return gemv_scale[0];
-        }
+    void operator()(sycl::nd_item<1> item) const SYCL_ESIMD_KERNEL {
+        if (item.get_group(0) > 0) return;
 
-        int split_n = (N + 1) / 2;
-        return gemv_scale[n < split_n ? 0 : 1];
-    }
-
-    template<int MAX_CHUNKS>
-    void run_impl(int n) const SYCL_ESIMD_FUNCTION {
         constexpr int VL = 512;
-        simd<float, VL> res_chunks[MAX_CHUNKS];
-        int n_chunks = K / VL;
-
+        const int n_chunks = K / VL;
         float sum_sq = 0.0f;
 
         for (int c = 0; c < n_chunks; c++) {
             int offset = c * VL;
             simd<float, VL> h = block_load<fp16, VL>(hidden_ptr + offset);
             simd<float, VL> r = block_load<fp16, VL>(residual_ptr + offset);
-
             simd<float, VL> added = h + r;
-            res_chunks[c] = added;
 
-            if (n == 0) {
-                block_store<fp16, VL>(residual_ptr + offset, simd<fp16, VL>(added));
-            }
+            block_store<fp16, VL>(residual_ptr + offset, simd<fp16, VL>(added));
 
             simd<float, VL> sq = added * added;
             sq.select<256,1>(0) += sq.select<256,1>(256);
@@ -118,17 +88,58 @@ struct ResAddNormGEMV_fp8_pert_kernel {
         float inv_rms = sycl::ext::intel::esimd::rsqrt(
             simd<float, 8>(sum_sq / (float)K + eps))[0];
 
+        for (int c = 0; c < n_chunks; c++) {
+            int offset = c * VL;
+            simd<float, VL> r = block_load<fp16, VL>(residual_ptr + offset);
+            simd<float, VL> w = block_load<fp16, VL>(norm_w_ptr + offset);
+            simd<float, VL> normed = r * inv_rms * w;
+            block_store<fp16, VL>(normed_out + offset, simd<fp16, VL>(normed));
+        }
+    }
+};
+
+struct NormedGEMV_fp8_pert_kernel {
+    const fp16*    normed_ptr;   // [1, K] — precomputed normalized hidden
+    const uint8_t* gemv_weight;  // [N, K] FP8
+    const float*   gemv_scale;   // [1] or [2]
+    fp16*          output;       // [1, N] — router logits
+    int N, K;
+    int gemv_scale_count;
+    int fp8_mode;
+
+    SYCL_ESIMD_FUNCTION float gemv_scale_for_n(int n) const {
+        if (gemv_scale_count == 1) {
+            return gemv_scale[0];
+        }
+
+        int split_n = (N + 1) / 2;
+        return gemv_scale[n < split_n ? 0 : 1];
+    }
+
+    template<int MAX_CHUNKS>
+    void run_large_k_impl(int n) const SYCL_ESIMD_FUNCTION {
+        constexpr int VL = 512;
+        constexpr int PREFETCH_BYTES = 64;
+        const int n_chunks = K / VL;
+
         simd<float, VL> acc = 0.0f;
+
+        if (n_chunks > 0) {
+            xesimd::lsc_prefetch<uint8_t, PREFETCH_BYTES, xesimd::lsc_data_size::default_size,
+                xesimd::cache_hint::uncached, xesimd::cache_hint::cached>(
+                gemv_weight + (size_t)n * K);
+        }
 
         for (int c = 0; c < n_chunks; c++) {
             int offset = c * VL;
 
-            simd<float, VL> nw = block_load<fp16, VL>(norm_w_ptr + offset);
-            simd<float, VL> normed = res_chunks[c] * inv_rms * nw;
-
-            if (n == 0) {
-                block_store<fp16, VL>(normed_out + offset, simd<fp16, VL>(normed));
+            if (c + 1 < n_chunks) {
+                xesimd::lsc_prefetch<uint8_t, PREFETCH_BYTES, xesimd::lsc_data_size::default_size,
+                    xesimd::cache_hint::uncached, xesimd::cache_hint::cached>(
+                    gemv_weight + (size_t)n * K + (c + 1) * VL);
             }
+
+                simd<float, VL> normed = block_load<fp16, VL>(normed_ptr + offset);
 
             simd<uint8_t, VL> w_raw = block_load<uint8_t, VL>(
                 gemv_weight + (size_t)n * K + offset);
@@ -153,9 +164,9 @@ struct ResAddNormGEMV_fp8_pert_kernel {
         if (n >= N) return;
 
         if (K <= 4096) {
-            run_impl<8>(n);
+            run_large_k_impl<8>(n);
         } else {
-            run_impl<16>(n);
+            run_large_k_impl<16>(n);
         }
     }
 };
@@ -175,12 +186,20 @@ inline void resadd_norm_gemv_fp8_pert_host(
     int fp8_mode,
     sycl::queue& q)
 {
+    auto norm_event = q.submit([&](sycl::handler& cgh) {
+        cgh.parallel_for(
+            sycl::nd_range<1>(1, 1),
+            ResAddNormOnce_fp8_kernel{
+                hidden_ptr, residual_ptr, norm_w_ptr,
+                normed_out, K, eps});
+    });
+
     q.submit([&](sycl::handler& cgh) {
+        cgh.depends_on(norm_event);
         cgh.parallel_for(
             sycl::nd_range<1>(N, 1),
-            ResAddNormGEMV_fp8_pert_kernel{
-                hidden_ptr, residual_ptr, norm_w_ptr,
-                gemv_weight, gemv_scale, output, normed_out,
-                N, K, gemv_scale_count, eps, fp8_mode});
+            NormedGEMV_fp8_pert_kernel{
+                normed_out, gemv_weight, gemv_scale, output,
+                N, K, gemv_scale_count, fp8_mode});
     });
 }
