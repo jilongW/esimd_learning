@@ -9,13 +9,13 @@
 - `esimd_fused_add_rms_norm_batched`
 - `esimd_rms_norm`
 
-其中 `esimd_gemv_fp8` 会根据 `scale` 自动分流：`scale.numel()==1` 走 per-tensor 路径，`scale.numel()==N` 走 per-N 路径；`esimd_gemv_fp8_pern` 和 `esimd_gemv_fp8_pert` 保留给需要显式路径或手工 sweep 配置的场景。
+其中 `esimd_gemv_fp8` 会根据 `scale` 自动分流：`scale.numel()==1` 走 per-tensor 路径，`scale.numel()==N` 走 per-N 路径；`esimd_gemv_fp8_pern` 和 `esimd_gemv_fp8_pert` 现在也都是自动选参版本。
 
 当前 GEMV FP8 的约定是：
 
 - `esimd_gemv_fp8(input, weight, scale, output)`：统一入口，内部根据 `scale` 形状自动选择 pern 或 pert 路径，并自动选择 `vl/ks`。
-- `esimd_gemv_fp8_pern(input, weight, scale, output, N, K, vl, ks)`：显式 per-N 路径，`scale` 是 `[N]` 的 `fp16`。
-- `esimd_gemv_fp8_pert(input, weight, scale, output, N, K, vl, ks)`：显式 per-tensor 路径，`scale` 是单个 `float` 标量。
+- `esimd_gemv_fp8_pern(input, weight, scale, output)`：per-N 路径，`scale` 是 `[N]` 的 `fp16`，`N/K` 与 `vl/ks` 都由实现内部自动确定。
+- `esimd_gemv_fp8_pert(input, weight, scale, output)`：per-tensor 路径，`scale` 是单个 `float` 标量，`N/K` 与 `vl/ks` 都由实现内部自动确定。
 
 `pern` 和 `pert` 的自动选参现在是两套独立 heuristic；统一入口会按实际路径分别使用对应的 `select_vl_ks_pern` 或 `select_vl_ks_pert`。
 

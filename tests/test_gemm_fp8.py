@@ -5,21 +5,6 @@ import sys
 from vllm.platforms import current_platform
 
 device = torch.device("xpu")
-VL_CANDIDATES = (128, 256, 512)
-KS_CANDIDATES = (1, 2, 4, 8, 10)
-SUPPORTED_GEMV_CONFIGS = {
-    (512, 1),
-    (512, 2),
-    (256, 1),
-    (256, 2),
-    (256, 4),
-    (256, 8),
-    (128, 1),
-    (128, 2),
-    (128, 4),
-    (128, 8),
-    (128, 10),
-}
 
 GEMV_SHAPES = [
     ("qkv_proj", 3072, 2560),
@@ -31,70 +16,6 @@ GEMV_SHAPES = [
     ("per_layer_input_gate", 256, 2560),
     ("per_layer_input_gate_out", 2560, 256),
 ]
-
-
-def _normalize_vl_ks(K: int, vl: int, ks: int) -> tuple[int, int]:
-    kpt = K // ks
-    while vl > kpt or kpt % vl != 0:
-        if vl > 128:
-            vl //= 2
-        elif ks == 10:
-            ks = 8
-        elif ks == 8:
-            ks = 4
-        elif ks == 4:
-            ks = 2
-        elif ks == 2:
-            ks = 1
-        else:
-            break
-        kpt = K // ks
-    return vl, ks
-
-
-def _select_vl_ks_impl(N: int, K: int, *, k256_vl: int, k256_ks: int) -> tuple[int, int]:
-    if K < 256:
-        vl, ks = 128, 1
-    elif K == 256:
-        vl, ks = k256_vl, k256_ks
-    elif K >= 10240:
-        vl, ks = 512, 2
-    elif K >= 4096:
-        vl, ks = 512, 2
-    elif K >= 2560 and N >= 10240:
-        vl, ks = 512, 1
-    elif K >= 2560:
-        vl, ks = 128, 10
-    elif K >= 2048:
-        vl, ks = 256, 8
-    else:
-        vl, ks = 512, 1
-
-    return _normalize_vl_ks(K, vl, ks)
-
-
-def select_vl_ks_pert(N: int, K: int) -> tuple[int, int]:
-    vl, ks = _select_vl_ks_impl(N, K, k256_vl=256, k256_ks=1)
-    if (vl, ks) not in _valid_vl_ks(K):
-        raise ValueError(f"No valid pert vl/ks for N={N}, K={K}")
-    return vl, ks
-
-
-def _valid_vl_ks(K: int) -> list[tuple[int, int]]:
-    valid = []
-    for vl in VL_CANDIDATES:
-        if K % vl != 0:
-            continue
-        for ks in KS_CANDIDATES:
-            if (vl, ks) not in SUPPORTED_GEMV_CONFIGS:
-                continue
-            if K % ks != 0:
-                continue
-            if (K // ks) % vl != 0:
-                continue
-            valid.append((vl, ks))
-    return valid
-
 
 def _benchmark_one(run_fn, output_fn, iters: int) -> tuple[float, list[float]]:
     for _ in range(10):
@@ -173,8 +94,6 @@ def benchmark_gemm_vs_gemv_vs_vllm():
             out_gemm = torch.zeros(1, N, dtype=io_dtype, device=device)
             out_gemv = torch.zeros(1, N, dtype=io_dtype, device=device)
             vllm_output = [torch.zeros(1, N, dtype=io_dtype, device=device)]
-            vl, ks = select_vl_ks_pert(N, K)
-
             element_bytes = torch.tensor([], dtype=io_dtype).element_size()
             total_bytes = K * element_bytes + N * K + N * 2 + N * element_bytes
             total_flops = 2 * N * K
@@ -215,10 +134,6 @@ def benchmark_gemm_vs_gemv_vs_vllm():
                     weights[index % nc],
                     scale_scalar,
                     out_gemv,
-                    N,
-                    K,
-                    vl,
-                    ks,
                 ),
                 lambda: out_gemv,
                 ni,
@@ -315,12 +230,10 @@ def test_gemm_vs_gemv_m1():
             weight_fp8 = weight_ref.to(torch.float8_e4m3fn)
             scale_t = torch.tensor(0.073, dtype=torch.float32, device=device)
             input_t = torch.randn(1, K, dtype=io_dtype, device=device) * 0.1
-            vl, ks = select_vl_ks_pert(N, K)
-
             out_gemv = torch.zeros(1, N, dtype=io_dtype, device=device)
             out_gemm = torch.zeros(1, N, dtype=io_dtype, device=device)
 
-            esimd_gemv_fp8_pert(input_t, weight_fp8, scale_t, out_gemv, N, K, vl, ks)
+            esimd_gemv_fp8_pert(input_t, weight_fp8, scale_t, out_gemv)
             esimd_gemm_fp8_pert(input_t, weight_fp8, scale_t, out_gemm)
 
             # Both use batched GEMV internally for M=1, should be close.

@@ -7,7 +7,7 @@
 
 TORCH_LIBRARY(custom_esimd_kernels_vllm, m) {
   m.def("esimd_gemv_fp8_pern(Tensor input, Tensor weight, Tensor weight_scale, "
-        "Tensor output, int N, int K, int vl, int ks) -> Tensor");
+        "Tensor output) -> Tensor");
   m.impl("esimd_gemv_fp8_pern", torch::kXPU, &esimd_gemv_fp8_pern);
 
   m.def("esimd_gemv_fp8(Tensor input, Tensor weight, Tensor weight_scale, "
@@ -15,7 +15,7 @@ TORCH_LIBRARY(custom_esimd_kernels_vllm, m) {
   m.impl("esimd_gemv_fp8", torch::kXPU, &esimd_gemv_fp8);
 
   m.def("esimd_gemv_fp8_pert(Tensor input, Tensor weight, Tensor weight_scale, "
-        "Tensor output, int N, int K, int vl, int ks) -> Tensor");
+        "Tensor output) -> Tensor");
   m.impl("esimd_gemv_fp8_pert", torch::kXPU, &esimd_gemv_fp8_pert);
   m.def("esimd_fused_add_rms_norm_batched(Tensor hidden_states, Tensor residual, "
         "Tensor weight, float eps) -> Tensor");

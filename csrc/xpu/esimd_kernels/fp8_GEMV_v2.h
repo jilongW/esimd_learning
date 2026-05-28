@@ -219,6 +219,34 @@ inline void GEMV_fp8_pern_host(
     }
 }
 
+inline void GEMV_fp8_pern_host(
+    uint8_t* input_data,
+    uint8_t* weight_data,
+    uint8_t* scale_data,
+    uint8_t* output_data,
+    uint32_t N,
+    uint32_t K,
+    bool input_is_bf16,
+    bool output_is_bf16,
+    int fp8_mode,
+    sycl::queue& q) {
+    int vl, ks;
+    select_vl_ks_pern(N, K, vl, ks);
+    GEMV_fp8_pern_host(
+        input_data,
+        weight_data,
+        scale_data,
+        output_data,
+        N,
+        K,
+        vl,
+        ks,
+        input_is_bf16,
+        output_is_bf16,
+        fp8_mode,
+        q);
+}
+
 // ============================================================================
 // Fused per-N scale
 // ============================================================================

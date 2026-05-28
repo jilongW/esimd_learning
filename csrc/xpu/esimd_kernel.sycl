@@ -87,10 +87,17 @@ static inline void validate_gemv_fp8_io(
 
 at::Tensor esimd_gemv_fp8_pern(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
-    at::Tensor output,
-    int64_t N, int64_t K, int64_t vl, int64_t ks) {
+    at::Tensor output) {
+    int64_t N = weight.size(0);
+    int64_t K = weight.size(1);
     validate_gemv_fp8_io(input, output, "esimd_gemv_fp8_pern");
-    validate_gemv_fp8_config(K, vl, ks, "esimd_gemv_fp8_pern");
+    TORCH_CHECK(
+        weight_scale.numel() == N,
+        "esimd_gemv_fp8_pern: scale must have N elements, got ",
+        weight_scale.numel(),
+        " for N=",
+        N
+    );
     EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
     EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
     auto& dpcpp_queue = get_device_queue(input);
@@ -101,8 +108,6 @@ at::Tensor esimd_gemv_fp8_pern(
         p_out,
         N,
         K,
-        (int)vl,
-        (int)ks,
         input.scalar_type() == at::ScalarType::BFloat16,
         output.scalar_type() == at::ScalarType::BFloat16,
         get_fp8_mode(weight),
@@ -171,10 +176,15 @@ at::Tensor esimd_gemv_fp8(
 
 at::Tensor esimd_gemv_fp8_pert(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
-    at::Tensor output,
-    int64_t N, int64_t K, int64_t vl, int64_t ks) {
+    at::Tensor output) {
+    int64_t N = weight.size(0);
+    int64_t K = weight.size(1);
     validate_gemv_fp8_io(input, output, "esimd_gemv_fp8_pert");
-    validate_gemv_fp8_config(K, vl, ks, "esimd_gemv_fp8_pert");
+    TORCH_CHECK(
+        weight_scale.numel() == 1,
+        "esimd_gemv_fp8_pert: scale must be a scalar, got ",
+        weight_scale.numel()
+    );
 
     EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
     EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
@@ -186,8 +196,6 @@ at::Tensor esimd_gemv_fp8_pert(
         p_out,
         (uint32_t)N,
         (uint32_t)K,
-        (int)vl,
-        (int)ks,
         input.scalar_type() == at::ScalarType::BFloat16,
         output.scalar_type() == at::ScalarType::BFloat16,
         get_fp8_mode(weight),
