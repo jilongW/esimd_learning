@@ -4,6 +4,7 @@ from . import custom_esimd_kernels
 from . import custom_esimd_kernels_gemm
 
 from .ops import (
+    esimd_gemv_fp8,
     esimd_gemv_fp8_pern,
     esimd_gemv_fp8_pert,
     esimd_fused_add_rms_norm_batched,
@@ -15,6 +16,7 @@ from .ops import (
 __all__ = [
     "custom_esimd_kernels",
     "custom_esimd_kernels_gemm",
+    "esimd_gemv_fp8",
     "esimd_gemv_fp8_pern",
     "esimd_gemv_fp8_pert",
     "esimd_fused_add_rms_norm_batched",

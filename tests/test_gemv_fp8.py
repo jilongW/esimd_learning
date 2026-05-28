@@ -1,5 +1,5 @@
 """
-Test esimd_gemv_fp8_pern kernel — FP8 GEMV with per-N scale, FP32 accumulation.
+Test unified esimd_gemv_fp8 kernel — FP8 GEMV with scale-shape dispatch, FP32 accumulation.
 
 Correctness: compare against FP16 dequant reference (torch matmul).
 Performance: benchmark Qwen3-Next-80B-A3B TP4 projection shapes.
@@ -28,24 +28,7 @@ SUPPORTED_GEMV_CONFIGS = {
 }
 
 
-def select_vl_ks(N: int, K: int) -> tuple[int, int]:
-    if K < 256:
-        vl, ks = 128, 1
-    elif K == 256:
-        vl, ks = 128, 2
-    elif K >= 10240:
-        vl, ks = 128, 10
-    elif K >= 4096:
-        vl, ks = 256, 4
-    elif K >= 2560 and N >= 10240:
-        vl, ks = 512, 1
-    elif K >= 2560:
-        vl, ks = 128, 10
-    elif K >= 2048:
-        vl, ks = 256, 8
-    else:
-        vl, ks = 512, 1
-
+def _normalize_vl_ks(K: int, vl: int, ks: int) -> tuple[int, int]:
     kpt = K // ks
     while vl > kpt or kpt % vl != 0:
         if vl > 128:
@@ -61,10 +44,47 @@ def select_vl_ks(N: int, K: int) -> tuple[int, int]:
         else:
             break
         kpt = K // ks
-
-    if (vl, ks) not in _valid_vl_ks(K):
-        raise ValueError(f"No valid vl/ks for N={N}, K={K}")
     return vl, ks
+
+
+def _select_vl_ks_impl(N: int, K: int, *, k256_vl: int, k256_ks: int) -> tuple[int, int]:
+    if K < 256:
+        vl, ks = 128, 1
+    elif K == 256:
+        vl, ks = k256_vl, k256_ks
+    elif K >= 10240:
+        vl, ks = 512, 2
+    elif K >= 4096:
+        vl, ks = 512, 2
+    elif K >= 2560 and N >= 10240:
+        vl, ks = 512, 1
+    elif K >= 2560:
+        vl, ks = 128, 10
+    elif K >= 2048:
+        vl, ks = 256, 8
+    else:
+        vl, ks = 512, 1
+
+    vl, ks = _normalize_vl_ks(K, vl, ks)
+    return vl, ks
+
+
+def select_vl_ks_pern(N: int, K: int) -> tuple[int, int]:
+    vl, ks = _select_vl_ks_impl(N, K, k256_vl=128, k256_ks=1)
+    if (vl, ks) not in _valid_vl_ks(K):
+        raise ValueError(f"No valid pern vl/ks for N={N}, K={K}")
+    return vl, ks
+
+
+def select_vl_ks_pert(N: int, K: int) -> tuple[int, int]:
+    vl, ks = _select_vl_ks_impl(N, K, k256_vl=256, k256_ks=1)
+    if (vl, ks) not in _valid_vl_ks(K):
+        raise ValueError(f"No valid pert vl/ks for N={N}, K={K}")
+    return vl, ks
+
+
+def select_vl_ks(N: int, K: int) -> tuple[int, int]:
+    return select_vl_ks_pern(N, K)
 
 
 def _valid_vl_ks(K: int) -> list[tuple[int, int]]:
@@ -83,11 +103,10 @@ def _valid_vl_ks(K: int) -> list[tuple[int, int]]:
     return valid
 
 
-def _run_pern_auto(input_t, weight_fp8, scale, output, N, K):
-    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
+def _run_gemv_auto(input_t, weight_fp8, scale, output):
+    from custom_esimd_kernels_vllm import esimd_gemv_fp8
 
-    vl, ks = select_vl_ks(N, K)
-    esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl, ks)
+    esimd_gemv_fp8(input_t, weight_fp8, scale, output)
     return output
 
 
@@ -129,8 +148,6 @@ def _assert_output_lists_close(esimd_outputs: list[float], ref_outputs: list[flo
 
 def test_correctness_basic():
     """Basic correctness: scale=1, compare dequant(fp8)*input vs kernel output."""
-    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
-
     print("\n--- Correctness (scale=1) ---")
     for N, K in [(3072, 2560), (2560, 2048), (20480, 2560), (2560, 10240),
                  (256, 2560), (2048, 128), (3072, 2048), (16, 2048)]:
@@ -141,7 +158,7 @@ def test_correctness_basic():
         input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
         output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        _run_pern_auto(input_t, weight_fp8, scale, output, N, K)
+        _run_gemv_auto(input_t, weight_fp8, scale, output)
 
         weight_dequant = weight_fp8.to(torch.float16)
         ref = input_t.float() @ weight_dequant.float().T
@@ -157,8 +174,6 @@ def test_correctness_basic():
 
 def test_correctness_with_scale():
     """Correctness with non-trivial per-N scale."""
-    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
-
     print("\n--- Correctness (with scale) ---")
     for N, K in [(3072, 2560), (2560, 2048), (20480, 2560), (2560, 10240), (128, 2048), (2560,10752)]:
         weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
@@ -168,7 +183,7 @@ def test_correctness_with_scale():
         input_t = torch.rand(1, K, dtype=torch.float16, device=device) * 0.1
         output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        _run_pern_auto(input_t, weight_fp8, scale, output, N, K)
+        _run_gemv_auto(input_t, weight_fp8, scale, output)
 
         weight_dequant = weight_fp8.to(torch.float16)
         ref = (input_t.float() @ weight_dequant.float().T) * scale.float().unsqueeze(0)
@@ -184,8 +199,7 @@ def test_correctness_with_scale():
 
 
 def test_pern_replay_from_assert_dump():
-    """Replay a captured failure case for esimd_gemv_fp8_pern."""
-    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
+    """Replay a captured failure case for unified esimd_gemv_fp8."""
 
     dump = torch.load(DUMP_PATH, map_location="cpu")
     input_t = dump["x"].to(device=device).to(torch.float16)
@@ -209,7 +223,7 @@ def test_pern_replay_from_assert_dump():
     print("scale shape:", scale.shape, "dtype:", scale.dtype)
     print("output shape:", output.shape, "dtype:", output.dtype)
     print("ref shape:", ref.shape, "dtype:", ref.dtype)
-    _run_pern_auto(input_t, weight_fp8, scale, output, N, K)
+    _run_gemv_auto(input_t, weight_fp8, scale, output)
 
     max_diff = (output.float() - ref.float()).abs().max().item()
     ref_max = ref.float().abs().max().item()
@@ -222,7 +236,7 @@ def test_pern_replay_from_assert_dump():
         f"scale_numel={scale.numel()} max_diff={max_diff:.4f} rel={rel_err:.4f}"
     )
     assert ok, (
-        "Replay from assert dump failed for esimd_gemv_fp8_pern: "
+        "Replay from assert dump failed for esimd_gemv_fp8: "
         f"max_diff={max_diff:.4f}, rel_err={rel_err:.4f}"
     )
 
@@ -270,7 +284,7 @@ def benchmark_shapes():
 
         ni = 4000 if total_bytes < 512 * 1024 else (1000 if total_bytes < 2 * 1024 * 1024 else 300)
 
-        heuristic_vl, heuristic_ks = select_vl_ks(N, K)
+        heuristic_vl, heuristic_ks = select_vl_ks_pern(N, K)
         best_cfg = None
         best_us = None
         rule_us = None
@@ -308,21 +322,93 @@ def benchmark_shapes():
             f"{bw:>7.1f} {bw_pct:>6.1f}% {us:>7.2f}"
         )
 
+
+def _search_best_pern_config(input_t, weights, scale_t, output_t, N: int, K: int, iters: int):
+    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
+
+    heuristic_vl, heuristic_ks = select_vl_ks_pern(N, K)
+    latency_tolerance_us = 0.2
+    best_cfg = None
+    best_outputs = None
+    best_us = None
+    rule_us = None
+    candidate_records = []
+
+    for vl, ks in _valid_vl_ks(K):
+        candidate_us, candidate_outputs = _benchmark_one(
+            lambda index, vl=vl, ks=ks: esimd_gemv_fp8_pern(
+                input_t,
+                weights[index % len(weights)],
+                scale_t,
+                output_t,
+                N,
+                K,
+                vl,
+                ks,
+            ),
+            lambda: output_t,
+            iters,
+        )
+        candidate_records.append(((vl, ks), candidate_us))
+        if (vl, ks) == (heuristic_vl, heuristic_ks):
+            rule_us = candidate_us
+        if best_us is None or candidate_us < (best_us - latency_tolerance_us):
+            best_cfg = (vl, ks)
+            best_outputs = candidate_outputs
+            best_us = candidate_us
+
+    assert best_cfg is not None and best_outputs is not None and best_us is not None and rule_us is not None
+    return best_cfg, best_us, best_outputs, (heuristic_vl, heuristic_ks), rule_us, candidate_records
+
+
+def _search_best_pert_config(input_t, weights, scale_t, output_t, N: int, K: int, iters: int):
+    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pert
+
+    heuristic_vl, heuristic_ks = select_vl_ks_pert(N, K)
+    latency_tolerance_us = 0.2
+    best_cfg = None
+    best_outputs = None
+    best_us = None
+    rule_us = None
+    candidate_records = []
+
+    for vl, ks in _valid_vl_ks(K):
+        candidate_us, candidate_outputs = _benchmark_one(
+            lambda index, vl=vl, ks=ks: esimd_gemv_fp8_pert(
+                input_t,
+                weights[index % len(weights)],
+                scale_t,
+                output_t,
+                N,
+                K,
+                vl,
+                ks,
+            ),
+            lambda: output_t,
+            iters,
+        )
+        candidate_records.append(((vl, ks), candidate_us))
+        if (vl, ks) == (heuristic_vl, heuristic_ks):
+            rule_us = candidate_us
+        if best_us is None or candidate_us < (best_us - latency_tolerance_us):
+            best_cfg = (vl, ks)
+            best_outputs = candidate_outputs
+            best_us = candidate_us
+
+    assert best_cfg is not None and best_outputs is not None and best_us is not None and rule_us is not None
+    return best_cfg, best_us, best_outputs, (heuristic_vl, heuristic_ks), rule_us, candidate_records
+
+
+def _candidate_contains_cfg(candidate_records, cfg: tuple[int, int]) -> bool:
+    return any(candidate_cfg == cfg for candidate_cfg, _ in candidate_records)
+
 def test_esimd_vs_vllm():
-    from custom_esimd_kernels_vllm import (
-        esimd_gemv_fp8_pern, 
-    )
-
-    def run_esimd_case(input_t, weight_t, scale_t, output_t, n, k, vl, ks):
-        esimd_gemv_fp8_pern(input_t, weight_t, scale_t, output_t, n, k, vl, ks)
-        return output_t
-
     TARGET_BW = 112.0  # GB/s PTL
 
     print(
-        f"\n{'Case':<30} {'Config':>20} | {'Indiv us':>10} {'vllm us':>10} {'Indiv TF':>10} {'vllm TF':>10} {'Indiv GB/s':>12} {'vllm GB/s':>11} {'Speedup':>8}"
+        f"\n{'Case':<30} {'Config':>20} {'Mode':>8} | {'ESIMD us':>10} {'vllm us':>10} {'ESIMD TF':>10} {'vllm TF':>10} {'ESIMD GB/s':>12} {'vllm GB/s':>11} {'Speedup':>8}"
     )
-    print("-" * 126)
+    print("-" * 138)
 
     shapes = [
         ("qkv_proj",     3072, 2560),                               # 128/10
@@ -358,73 +444,102 @@ def test_esimd_vs_vllm():
 
         for dtype_name, io_dtype in dtype_cases:
             input_t = torch.randn(1, K, dtype=io_dtype, device=device) * 0.1
-            output = torch.zeros(1, N, dtype=io_dtype, device=device)
-            heuristic_vl, heuristic_ks = select_vl_ks(N, K)
+            pern_output = torch.zeros(1, N, dtype=io_dtype, device=device)
+            pert_output = torch.zeros(1, N, dtype=io_dtype, device=device)
 
             # Total bytes: input + weight + scale + output
             element_bytes = torch.tensor([], dtype=io_dtype).element_size()
-            total_bytes = K * element_bytes + N * K + N * 2 + N * element_bytes
+            pern_bytes = K * element_bytes + N * K + N * 2 + N * element_bytes
+            pert_bytes = K * element_bytes + N * K + 4 + N * element_bytes
 
             config = f"N={N} K={K} {dtype_name}"
             ni = 1000
-            vllm_output = [torch.zeros(1, N, dtype=io_dtype, device=device)]
-            vllm_us, vllm_outputs = _benchmark_one(
-                lambda index: vllm_output.__setitem__(
+            pern_vllm_output = [torch.zeros(1, N, dtype=io_dtype, device=device)]
+            pern_vllm_us, pern_vllm_outputs = _benchmark_one(
+                lambda index: pern_vllm_output.__setitem__(
                     0,
                     torch.ops._xpu_C.fp8_gemm_w8a16(
                         input_t, weights[index % nc].t(), scale, None
                     ),
                 ),
-                lambda: vllm_output[0],
+                lambda: pern_vllm_output[0],
                 ni,
             )
-            time.sleep(1)
-            best_cfg = None
-            best_outputs = None
-            indiv_us = None
-            rule_us = None
-            # print(_valid_vl_ks(K))
-            for vl, ks in _valid_vl_ks(K):
-                candidate_us, candidate_outputs = _benchmark_one(
-                    lambda index, vl=vl, ks=ks: run_esimd_case(
-                        input_t,
-                        weights[index % nc],
-                        scale,
-                        output,
-                        N,
-                        K,
-                        vl,
-                        ks,
-                    ),
-                    lambda: output,
-                    ni,
-                )
-                if (vl, ks) == (heuristic_vl, heuristic_ks):
-                    rule_us = candidate_us
-                # print(f"  Config N={N} K={K} {dtype_name} rule={vl}:{ks} latency={candidate_us:.2f}us")
-                if indiv_us is None or candidate_us < indiv_us:
-                    indiv_us = candidate_us
-                    best_cfg = (vl, ks)
-                    best_outputs = candidate_outputs
-                time.sleep(1)
-                
 
-            assert indiv_us is not None and best_cfg is not None and best_outputs is not None and rule_us is not None
-            _assert_output_lists_close(best_outputs, vllm_outputs)
-
-            time.sleep(1)
-            
-            flops = 2 * N * K
-            indiv_tflops = flops / (indiv_us * 1e6) if indiv_us > 0 else 0
-            vllm_tflops = flops / (vllm_us * 1e6) if vllm_us > 0 else 0
-            indiv_bw = (total_bytes / 1e9) / (indiv_us / 1e6) if indiv_us > 0 else 0
-            vllm_bw = (total_bytes / 1e9) / (vllm_us / 1e6) if vllm_us > 0 else 0
-
-            speedup = vllm_us / indiv_us if indiv_us > 0 else 0
-            print(
-                f"{name:<30} {config} rule={heuristic_vl}:{heuristic_ks}({rule_us:>7.2f}us) best={best_cfg[0]}:{best_cfg[1]}({indiv_us:>7.2f}us) | {indiv_us:>9.2f} {vllm_us:>9.2f} "
-                f"{indiv_tflops:>9.4f} {vllm_tflops:>9.4f} {indiv_bw:>11.2f} {vllm_bw:>11.2f} {speedup:>7.2f}x"
+            best_cfg, pern_us, pern_outputs, rule_cfg, rule_us, pern_candidates = _search_best_pern_config(
+                input_t,
+                weights,
+                scale,
+                pern_output,
+                N,
+                K,
+                ni,
             )
+            pern_rule_in_search = _candidate_contains_cfg(pern_candidates, rule_cfg)
+            _assert_output_lists_close(pern_outputs, pern_vllm_outputs)
+
+            pert_scale_value = 0.05 + torch.rand(1).item() * 0.1
+            pert_scale = torch.tensor(pert_scale_value, dtype=torch.float32, device=device)
+            pert_scale_vllm = torch.full((N,), pert_scale_value, dtype=torch.float16, device=device)
+
+            pert_vllm_output = [torch.zeros(1, N, dtype=io_dtype, device=device)]
+            pert_vllm_us, pert_vllm_outputs = _benchmark_one(
+                lambda index: pert_vllm_output.__setitem__(
+                    0,
+                    torch.ops._xpu_C.fp8_gemm_w8a16(
+                        input_t, weights[index % nc].t(), pert_scale_vllm, None
+                    ),
+                ),
+                lambda: pert_vllm_output[0],
+                ni,
+            )
+            pert_best_cfg, pert_us, pert_outputs, pert_rule_cfg, pert_rule_us, pert_candidates = _search_best_pert_config(
+                input_t,
+                weights,
+                pert_scale,
+                pert_output,
+                N,
+                K,
+                ni,
+            )
+            pert_rule_in_search = _candidate_contains_cfg(pert_candidates, pert_rule_cfg)
+            _assert_output_lists_close(pert_outputs, pert_vllm_outputs)
+
+            flops = 2 * N * K
+            pern_tflops = flops / (pern_us * 1e6) if pern_us > 0 else 0
+            pern_vllm_tflops = flops / (pern_vllm_us * 1e6) if pern_vllm_us > 0 else 0
+            pern_bw = (pern_bytes / 1e9) / (pern_us / 1e6) if pern_us > 0 else 0
+            pern_vllm_bw = (pern_bytes / 1e9) / (pern_vllm_us / 1e6) if pern_vllm_us > 0 else 0
+
+            print(
+                f"{name:<30} {config:>20} {'pern':>8} | {pern_us:>9.2f} {pern_vllm_us:>9.2f} "
+                f"{pern_tflops:>9.4f} {pern_vllm_tflops:>9.4f} {pern_bw:>11.2f} {pern_vllm_bw:>11.2f} {(pern_vllm_us / pern_us) if pern_us > 0 else 0:>7.2f}x"
+            )
+            print(
+                f"{'':<30} {'':>20} {'cfg':>8} | rule={rule_cfg[0]}:{rule_cfg[1]}({rule_us:>7.2f}us) best={best_cfg[0]}:{best_cfg[1]}({pern_us:>7.2f}us) in_search={pern_rule_in_search}"
+            )
+            print(
+                f"{'':<30} {'':>20} {'all':>8} | "
+                f"{' '.join(f'{cfg[0]}:{cfg[1]}={latency:0.2f}us' for cfg, latency in pern_candidates)}"
+            )
+            assert pern_rule_in_search, f"pern auto cfg {rule_cfg} missing from candidate list"
+
+            pert_tflops = flops / (pert_us * 1e6) if pert_us > 0 else 0
+            pert_vllm_tflops = flops / (pert_vllm_us * 1e6) if pert_vllm_us > 0 else 0
+            pert_bw = (pert_bytes / 1e9) / (pert_us / 1e6) if pert_us > 0 else 0
+            pert_vllm_bw = (pern_bytes / 1e9) / (pert_vllm_us / 1e6) if pert_vllm_us > 0 else 0
+            print(
+                f"{name:<30} {config:>20} {'pert':>8} | {pert_us:>9.2f} {pert_vllm_us:>9.2f} "
+                f"{pert_tflops:>9.4f} {pert_vllm_tflops:>9.4f} {pert_bw:>11.2f} {pert_vllm_bw:>11.2f} {(pert_vllm_us / pert_us) if pert_us > 0 else 0:>7.2f}x"
+            )
+            print(
+                f"{'':<30} {'':>20} {'cfg':>8} | rule={pert_rule_cfg[0]}:{pert_rule_cfg[1]}({pert_rule_us:>7.2f}us) best={pert_best_cfg[0]}:{pert_best_cfg[1]}({pert_us:>7.2f}us) in_search={pert_rule_in_search}"
+            )
+            print(
+                f"{'':<30} {'':>20} {'all':>8} | "
+                f"{' '.join(f'{cfg[0]}:{cfg[1]}={latency:0.2f}us' for cfg, latency in pert_candidates)}"
+            )
+            assert pert_rule_in_search, f"pert auto cfg {pert_rule_cfg} missing from candidate list"
 
 
 def benchmark_fused():
@@ -481,8 +596,6 @@ def benchmark_fused():
 
 def test_pert_correctness():
     """Per-tensor scale: compare against FP16 dequant reference."""
-    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pert
-
     print("\n--- Per-tensor scale Correctness ---")
     for N, K in [(1024, 1024), (2560, 2048), (512, 2048), (3072, 2048),
                  (128, 2048), (16, 2048), (2048, 512)]:
@@ -494,7 +607,7 @@ def test_pert_correctness():
         input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
         output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        esimd_gemv_fp8_pert(input_t, weight_fp8, scale_t, output)
+        _run_gemv_auto(input_t, weight_fp8, scale_t, output)
 
         weight_dequant = weight_fp8.to(torch.float16)
         ref = (input_t.float() @ weight_dequant.float().T) * scale_val
@@ -510,8 +623,6 @@ def test_pert_correctness():
 
 def test_pert_vs_pern():
     """Per-tensor scale should match per-N when all per-N scales are the same."""
-    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern, esimd_gemv_fp8_pert
-
     print("\n--- Per-tensor vs Per-N (uniform scale) ---")
     for N, K in [(2560, 2048), (512, 2048), (128, 2048)]:
         weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
@@ -525,8 +636,8 @@ def test_pert_vs_pern():
         out_pern = torch.zeros(1, N, dtype=torch.float16, device=device)
         out_pert = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        _run_pern_auto(input_t, weight_fp8, scale_pern, out_pern, N, K)
-        esimd_gemv_fp8_pert(input_t, weight_fp8, scale_pert, out_pert)
+        _run_gemv_auto(input_t, weight_fp8, scale_pern, out_pern)
+        _run_gemv_auto(input_t, weight_fp8, scale_pert, out_pert)
 
         # Not bit-identical due to fp16 vs fp32 scale precision, but should be very close
         max_diff = (out_pert.float() - out_pern.float()).abs().max().item()
@@ -540,8 +651,6 @@ def test_pert_vs_pern():
 
 def test_e5m2_correctness_pern():
     """E5M2 per-N scale correctness: compare against FP16 dequant reference."""
-    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
-
     print("\n--- E5M2 Per-N Correctness ---")
     for N, K in [(1024, 1024), (2560, 2048), (512, 2048), (128, 2048), (16, 2048)]:
         weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
@@ -551,7 +660,7 @@ def test_e5m2_correctness_pern():
         input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
         output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        _run_pern_auto(input_t, weight_fp8, scale, output, N, K)
+        _run_gemv_auto(input_t, weight_fp8, scale, output)
 
         weight_dequant = weight_fp8.to(torch.float16)
         ref = (input_t.float() @ weight_dequant.float().T) * scale.float().unsqueeze(0)
@@ -567,8 +676,6 @@ def test_e5m2_correctness_pern():
 
 def test_e5m2_correctness_pert():
     """E5M2 per-tensor scale correctness."""
-    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pert
-
     print("\n--- E5M2 Per-tensor Correctness ---")
     for N, K in [(1024, 1024), (2560, 2048), (512, 2048), (128, 2048)]:
         weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
@@ -579,7 +686,7 @@ def test_e5m2_correctness_pert():
         input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
         output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        esimd_gemv_fp8_pert(input_t, weight_fp8, scale_t, output)
+        _run_gemv_auto(input_t, weight_fp8, scale_t, output)
 
         weight_dequant = weight_fp8.to(torch.float16)
         ref = (input_t.float() @ weight_dequant.float().T) * scale_val
@@ -595,11 +702,6 @@ def test_e5m2_correctness_pert():
 
 def test_e5m2_fused():
     """E5M2 fused correctness: fused2 pern + fused2 pert."""
-    from custom_esimd_kernels_vllm import (
-        esimd_gemv_fp8_pern, 
-        esimd_gemv_fp8_pert, 
-    )
-
     print("\n--- E5M2 Fused Correctness ---")
     N0, N1, K = 512, 512, 2048
     input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
@@ -612,8 +714,8 @@ def test_e5m2_fused():
 
     ref_o0 = torch.zeros(1, N0, dtype=torch.float16, device=device)
     ref_o1 = torch.zeros(1, N1, dtype=torch.float16, device=device)
-    _run_pern_auto(input_t, w0, s0, ref_o0, N0, K)
-    _run_pern_auto(input_t, w1, s1, ref_o1, N1, K)
+    _run_gemv_auto(input_t, w0, s0, ref_o0)
+    _run_gemv_auto(input_t, w1, s1, ref_o1)
 
    
 
@@ -623,8 +725,8 @@ def test_e5m2_fused():
 
     ref_o0 = torch.zeros(1, N0, dtype=torch.float16, device=device)
     ref_o1 = torch.zeros(1, N1, dtype=torch.float16, device=device)
-    esimd_gemv_fp8_pert(input_t, w0, st0, ref_o0)
-    esimd_gemv_fp8_pert(input_t, w1, st1, ref_o1)
+    _run_gemv_auto(input_t, w0, st0, ref_o0)
+    _run_gemv_auto(input_t, w1, st1, ref_o1)
 
 
 def benchmark_e5m2():

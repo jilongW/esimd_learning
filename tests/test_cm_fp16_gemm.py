@@ -508,7 +508,7 @@ def run_cm_vs_esimd_gemv_vs_vllm_vs_esimd_gemm() -> None:
     import torch
 
     try:
-        from custom_esimd_kernels_vllm import esimd_gemm_fp8_pert, esimd_gemv_fp8_pern
+        from custom_esimd_kernels_vllm import esimd_gemm_fp8_pert, esimd_gemv_fp8
     except Exception as exc:
         raise RuntimeError(f"custom_esimd_kernels_vllm is unavailable: {exc}") from exc
 
@@ -598,7 +598,7 @@ def run_cm_vs_esimd_gemv_vs_vllm_vs_esimd_gemm() -> None:
         # _verify_output(cm_host_a, weight_fp16_copies[0], cm_host_c, cm_m, n, k)
 
         vl, ks = _select_esimd_gemv_vl_ks(n, k)
-        esimd_gemv_fp8_pern(input_t, weight_fp8_copies[0], scale_pern, out_esimd_gemv, n, k, vl, ks)
+        esimd_gemv_fp8(input_t, weight_fp8_copies[0], scale_pern, out_esimd_gemv)
         out_vllm = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, weight_fp8_copies[0].t(), scale_pern, None)
         esimd_gemm_fp8_pert(input_t, weight_fp8_copies[0], scale_pert, out_esimd_gemm)
 
@@ -653,11 +653,11 @@ def run_cm_vs_esimd_gemv_vs_vllm_vs_esimd_gemm() -> None:
         cm_us = (time.perf_counter() - t0) / num_iters * 1e6
         time.sleep(2)
         for i in range(10):
-            esimd_gemv_fp8_pern(input_t, weight_fp8_copies[i % num_copies], scale_pern, out_esimd_gemv, n, k, vl, ks)
+            esimd_gemv_fp8(input_t, weight_fp8_copies[i % num_copies], scale_pern, out_esimd_gemv)
         torch.xpu.synchronize()
         t0 = time.perf_counter()
         for i in range(num_iters):
-            esimd_gemv_fp8_pern(input_t, weight_fp8_copies[i % num_copies], scale_pern, out_esimd_gemv, n, k, vl, ks)
+            esimd_gemv_fp8(input_t, weight_fp8_copies[i % num_copies], scale_pern, out_esimd_gemv)
         torch.xpu.synchronize()
         esimd_gemv_us = (time.perf_counter() - t0) / num_iters * 1e6
         time.sleep(2)

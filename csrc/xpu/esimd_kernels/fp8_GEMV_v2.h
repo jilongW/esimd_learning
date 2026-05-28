@@ -90,39 +90,70 @@ struct GEMV_fp8_pern_kernel {
     }
 };
 
-// VL/K_SPLIT auto-selection helper (shared by all dispatchers)
-inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
-    // printf("Selecting VL/KS for N=%u K=%u\n", N, K);
-    vl = 512; ks = 1;
+inline void normalize_gemv_vl_ks(uint32_t K, int& vl, int& ks) {
+    auto step_down_ks = [](int value) {
+        if (value == 10) return 8;
+        if (value == 8) return 4;
+        if (value == 4) return 2;
+        if (value == 2) return 1;
+        return value;
+    };
 
-    if (K < 256) {
-        vl = 128; ks = 1;
-    } else if (K == 256) {
-        vl = 128; ks = 2;
-    }
-    if (K >= 10240) {
-        vl = 128; ks = 10;
-    }else if (K >= 4096) {
-        vl = 256; ks = 4;
-    }else if (K >= 2560 && N>=10240) {
-        vl = 512; ks = 1;
-    }else if (K >= 2560 ){
-        vl = 128; ks = 10;
-    }    else if (K >= 2048 ){
-        vl = 256; ks = 8;
-    }
-
-    int kpt = K / ks;
+    int kpt = static_cast<int>(K) / ks;
     while (vl > kpt || kpt % vl != 0) {
         if (vl > 128) {
             vl /= 2;
-        } else if (ks > 1) {
-            ks /= 2;
-            kpt = K / ks;
         } else {
-            break;
+            int next_ks = step_down_ks(ks);
+            if (next_ks == ks) {
+                break;
+            }
+            ks = next_ks;
+            kpt = static_cast<int>(K) / ks;
         }
     }
+}
+
+inline void select_vl_ks_impl(uint32_t N, uint32_t K, int k256_vl, int k256_ks, int& vl, int& ks) {
+    vl = 512;
+    ks = 1;
+
+    if (K < 256) {
+        vl = 128;
+        ks = 1;
+    } else if (K == 256) {
+        vl = k256_vl;
+        ks = k256_ks;
+    } else if (K >= 10240) {
+        vl = 512;
+        ks = 2;
+    } else if (K >= 4096) {
+        vl = 512;
+        ks = 2;
+    } else if (K >= 2560 && N >= 10240) {
+        vl = 512;
+        ks = 1;
+    } else if (K >= 2560) {
+        vl = 128;
+        ks = 10;
+    } else if (K >= 2048) {
+        vl = 256;
+        ks = 8;
+    }
+
+    normalize_gemv_vl_ks(K, vl, ks);
+}
+
+inline void select_vl_ks_pern(uint32_t N, uint32_t K, int& vl, int& ks) {
+    select_vl_ks_impl(N, K, 128, 1, vl, ks);
+}
+
+inline void select_vl_ks_pert(uint32_t N, uint32_t K, int& vl, int& ks) {
+    select_vl_ks_impl(N, K, 256, 1, vl, ks);
+}
+
+inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
+    select_vl_ks_pern(N, K, vl, ks);
 }
 
 template<typename InputT, typename OutputT>
@@ -183,10 +214,6 @@ inline void GEMV_fp8_pern_host(
     sycl::queue& q) {
     if (input_is_bf16 && output_is_bf16) {
         GEMV_fp8_pern_host_impl<bf16, bf16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
-    } else if (input_is_bf16) {
-        GEMV_fp8_pern_host_impl<bf16, fp16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
-    } else if (output_is_bf16) {
-        GEMV_fp8_pern_host_impl<fp16, bf16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
     } else {
         GEMV_fp8_pern_host_impl<fp16, fp16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
     }
@@ -279,7 +306,7 @@ inline void GEMV_fp8_pern_fused_host(
     for (int i = 0; i < GEMV_COUNT; i++) total_N += Ns[i];
 
     int vl, ks;
-    select_vl_ks(total_N, K, vl, ks);
+    select_vl_ks_pern(total_N, K, vl, ks);
 
     int global = total_N * ks;
     int local  = ks;
@@ -378,6 +405,8 @@ inline void GEMV_fp8_pert_host_impl(
     uint8_t* output_data,
     uint32_t N,
     uint32_t K,
+    int vl,
+    int ks,
     int fp8_mode,
     sycl::queue& q) {
 
@@ -385,9 +414,6 @@ inline void GEMV_fp8_pert_host_impl(
     auto* p_w   = reinterpret_cast<const uint8_t*>(weight_data);
     auto* p_sc  = reinterpret_cast<const float*>(scale_data);
     auto* p_out = reinterpret_cast<OutputT*>(output_data);
-
-    int vl, ks;
-    select_vl_ks(N, K, vl, ks);
 
     int global = N * ks;
     int local  = ks;
@@ -421,19 +447,45 @@ inline void GEMV_fp8_pert_host(
     uint8_t* output_data,
     uint32_t N,
     uint32_t K,
+    int vl,
+    int ks,
     bool input_is_bf16,
     bool output_is_bf16,
     int fp8_mode,
     sycl::queue& q) {
     if (input_is_bf16 && output_is_bf16) {
-        GEMV_fp8_pert_host_impl<bf16, bf16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
-    } else if (input_is_bf16) {
-        GEMV_fp8_pert_host_impl<bf16, fp16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
-    } else if (output_is_bf16) {
-        GEMV_fp8_pert_host_impl<fp16, bf16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+        GEMV_fp8_pert_host_impl<bf16, bf16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
     } else {
-        GEMV_fp8_pert_host_impl<fp16, fp16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+        GEMV_fp8_pert_host_impl<fp16, fp16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
     }
+}
+
+inline void GEMV_fp8_pert_host(
+    uint8_t* input_data,
+    uint8_t* weight_data,
+    uint8_t* scale_data,
+    uint8_t* output_data,
+    uint32_t N,
+    uint32_t K,
+    bool input_is_bf16,
+    bool output_is_bf16,
+    int fp8_mode,
+    sycl::queue& q) {
+    int vl, ks;
+    select_vl_ks_pert(N, K, vl, ks);
+    GEMV_fp8_pert_host(
+        input_data,
+        weight_data,
+        scale_data,
+        output_data,
+        N,
+        K,
+        vl,
+        ks,
+        input_is_bf16,
+        output_is_bf16,
+        fp8_mode,
+        q);
 }
 
 // ============================================================================
@@ -522,7 +574,7 @@ inline void GEMV_fp8_pert_fused_host(
     for (int i = 0; i < GEMV_COUNT; i++) total_N += Ns[i];
 
     int vl, ks;
-    select_vl_ks(total_N, K, vl, ks);
+    select_vl_ks_pert(total_N, K, vl, ks);
 
     int global = total_N * ks;
     int local  = ks;

@@ -27,46 +27,70 @@ static inline bool is_supported_gemv_fp8_pern_config(int64_t vl, int64_t ks) {
            (vl == 128 && (ks == 1 || ks == 2 || ks == 4 || ks == 8 || ks == 10));
 }
 
+static inline void validate_gemv_fp8_config(
+    int64_t K,
+    int64_t vl,
+    int64_t ks,
+    const char* op_name) {
+    TORCH_CHECK(
+        vl == 128 || vl == 256 || vl == 512,
+        op_name,
+        ": vl must be one of 128, 256, 512"
+    );
+    TORCH_CHECK(
+        ks == 1 || ks == 2 || ks == 4 || ks == 8 || ks == 10,
+        op_name,
+        ": ks must be one of 1, 2, 4, 8, 10"
+    );
+    TORCH_CHECK(
+        is_supported_gemv_fp8_pern_config(vl, ks),
+        op_name,
+        ": unsupported vl/ks combination"
+    );
+    TORCH_CHECK(
+        K % ks == 0,
+        op_name,
+        ": K must be divisible by ks"
+    );
+    TORCH_CHECK(
+        K % vl == 0,
+        op_name,
+        ": K must be divisible by vl"
+    );
+    TORCH_CHECK(
+        (K / ks) % vl == 0,
+        op_name,
+        ": K / ks must be divisible by vl"
+    );
+}
+
+static inline void validate_gemv_fp8_io(
+    const at::Tensor& input,
+    const at::Tensor& output,
+    const char* op_name) {
+    TORCH_CHECK(
+        input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16,
+        op_name,
+        ": input must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        output.scalar_type() == at::ScalarType::Half || output.scalar_type() == at::ScalarType::BFloat16,
+        op_name,
+        ": output must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        input.scalar_type() == output.scalar_type(),
+        op_name,
+        ": input and output must have the same dtype"
+    );
+}
+
 at::Tensor esimd_gemv_fp8_pern(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
     at::Tensor output,
     int64_t N, int64_t K, int64_t vl, int64_t ks) {
-    TORCH_CHECK(
-        input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16,
-        "esimd_gemv_fp8_pern: input must be fp16 or bf16"
-    );
-    TORCH_CHECK(
-        output.scalar_type() == at::ScalarType::Half || output.scalar_type() == at::ScalarType::BFloat16,
-        "esimd_gemv_fp8_pern: output must be fp16 or bf16"
-    );
-    TORCH_CHECK(
-        input.scalar_type() == output.scalar_type(),
-        "esimd_gemv_fp8_pern: input and output must have the same dtype"
-    );
-    TORCH_CHECK(
-        vl == 128 || vl == 256 || vl == 512,
-        "esimd_gemv_fp8_pern: vl must be one of 128, 256, 512"
-    );
-    TORCH_CHECK(
-        ks == 1 || ks == 2 || ks == 4 || ks == 8 || ks == 10,
-        "esimd_gemv_fp8_pern: ks must be one of 1, 2, 4, 8, 10"
-    );
-    TORCH_CHECK(
-        is_supported_gemv_fp8_pern_config(vl, ks),
-        "esimd_gemv_fp8_pern: unsupported vl/ks combination"
-    );
-    TORCH_CHECK(
-        K % ks == 0,
-        "esimd_gemv_fp8_pern: K must be divisible by ks"
-    );
-    TORCH_CHECK(
-        K % vl == 0,
-        "esimd_gemv_fp8_pern: K must be divisible by vl"
-    );
-    TORCH_CHECK(
-        (K / ks) % vl == 0,
-        "esimd_gemv_fp8_pern: K / ks must be divisible by vl"
-    );
+    validate_gemv_fp8_io(input, output, "esimd_gemv_fp8_pern");
+    validate_gemv_fp8_config(K, vl, ks, "esimd_gemv_fp8_pern");
     EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
     EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
     auto& dpcpp_queue = get_device_queue(input);
@@ -86,25 +110,72 @@ at::Tensor esimd_gemv_fp8_pern(
     return output;
 }
 
-// ---- Per-tensor scale variants (N/K auto-detected from tensor shapes) ----
-
-at::Tensor esimd_gemv_fp8_pert(
+at::Tensor esimd_gemv_fp8(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
     at::Tensor output) {
     int64_t N = weight.size(0);
     int64_t K = weight.size(1);
+
+    validate_gemv_fp8_io(input, output, "esimd_gemv_fp8");
     TORCH_CHECK(
-        input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16,
-        "esimd_gemv_fp8_pert: input must be fp16 or bf16"
+        weight_scale.numel() == 1 || weight_scale.numel() == N,
+        "esimd_gemv_fp8: scale must be a scalar or have N elements, got ",
+        weight_scale.numel(),
+        " for N=",
+        N
     );
-    TORCH_CHECK(
-        output.scalar_type() == at::ScalarType::Half || output.scalar_type() == at::ScalarType::BFloat16,
-        "esimd_gemv_fp8_pert: output must be fp16 or bf16"
-    );
-    TORCH_CHECK(
-        input.scalar_type() == output.scalar_type(),
-        "esimd_gemv_fp8_pert: input and output must have the same dtype"
-    );
+
+    EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
+    EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
+    auto& dpcpp_queue = get_device_queue(input);
+    bool input_is_bf16 = input.scalar_type() == at::ScalarType::BFloat16;
+    bool output_is_bf16 = output.scalar_type() == at::ScalarType::BFloat16;
+    int fp8_mode = get_fp8_mode(weight);
+
+    if (weight_scale.numel() == 1) {
+        int vl, ks;
+        select_vl_ks_pert((uint32_t)N, (uint32_t)K, vl, ks);
+        GEMV_fp8_pert_host(
+            p_in,
+            p_w,
+            p_sc,
+            p_out,
+            N,
+            K,
+            vl,
+            ks,
+            input_is_bf16,
+            output_is_bf16,
+            fp8_mode,
+            dpcpp_queue);
+    } else {
+        int vl, ks;
+        select_vl_ks_pern((uint32_t)N, (uint32_t)K, vl, ks);
+        GEMV_fp8_pern_host(
+            p_in,
+            p_w,
+            p_sc,
+            p_out,
+            N,
+            K,
+            vl,
+            ks,
+            input_is_bf16,
+            output_is_bf16,
+            fp8_mode,
+            dpcpp_queue);
+    }
+
+    return output;
+}
+
+at::Tensor esimd_gemv_fp8_pert(
+    at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
+    at::Tensor output,
+    int64_t N, int64_t K, int64_t vl, int64_t ks) {
+    validate_gemv_fp8_io(input, output, "esimd_gemv_fp8_pert");
+    validate_gemv_fp8_config(K, vl, ks, "esimd_gemv_fp8_pert");
+
     EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
     EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
     auto& dpcpp_queue = get_device_queue(input);
@@ -113,14 +184,19 @@ at::Tensor esimd_gemv_fp8_pert(
         p_w,
         p_sc,
         p_out,
-        N,
-        K,
+        (uint32_t)N,
+        (uint32_t)K,
+        (int)vl,
+        (int)ks,
         input.scalar_type() == at::ScalarType::BFloat16,
         output.scalar_type() == at::ScalarType::BFloat16,
         get_fp8_mode(weight),
         dpcpp_queue);
+
     return output;
 }
+
+// ---- Per-tensor scale variants (N/K auto-detected from tensor shapes) ----
 
 //  ---- Need k >= 512 ----
 at::Tensor esimd_fused_add_rms_norm_batched(

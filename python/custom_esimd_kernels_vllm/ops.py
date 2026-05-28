@@ -4,6 +4,17 @@ import torch
 
 _ops = torch.ops.custom_esimd_kernels_vllm
 
+def esimd_gemv_fp8(
+    input: torch.Tensor, weight: torch.Tensor, weight_scale: torch.Tensor,
+    output: torch.Tensor,
+) -> torch.Tensor:
+    """Unified FP8 GEMV with automatic scale-shape dispatch.
+
+    input/output: [1, K]/[1, N] fp16 or bf16 with matching dtype,
+    weight: [N, K] fp8, scale: scalar fp32 or [N] fp16/bf16.
+    """
+    return _ops.esimd_gemv_fp8(input, weight, weight_scale, output)
+
 def esimd_gemv_fp8_pern(
     input: torch.Tensor, weight: torch.Tensor, weight_scale: torch.Tensor,
     output: torch.Tensor,
@@ -23,14 +34,16 @@ def esimd_gemv_fp8_pern(
 def esimd_gemv_fp8_pert(
     input: torch.Tensor, weight: torch.Tensor, weight_scale: torch.Tensor,
     output: torch.Tensor,
+    N: int, K: int,
+    vl: int, ks: int,
 ) -> torch.Tensor:
     """FP8 weight GEMV with per-tensor scale (fp32 scalar).
 
     input/output: [1, K]/[1, N] fp16 or bf16 with matching dtype,
     weight: [N, K] fp8_e4m3, scale: fp32 scalar.
-    N and K are inferred from weight shape.
+    K must be divisible by both ks and vl, and (K // ks) must be divisible by vl.
     """
-    return _ops.esimd_gemv_fp8_pert(input, weight, weight_scale, output)
+    return _ops.esimd_gemv_fp8_pert(input, weight, weight_scale, output, N, K, vl, ks)
 
 def esimd_fused_add_rms_norm_batched(
     hidden_states: torch.Tensor,
