@@ -54,7 +54,7 @@ def esimd_rms_norm(
 ) -> torch.Tensor:
     """Batched RMSNorm.
 
-    hidden_states: [rows, K] fp16 or bf16, where K is a multiple of 512.
+    hidden_states: [..., K] fp16 or bf16, where K is a multiple of 128.
     weight: [K] with the same dtype as hidden_states.
     output: preallocated output tensor with the same shape and dtype as hidden_states.
     VL/KS are selected automatically inside the XPU kernel host path.

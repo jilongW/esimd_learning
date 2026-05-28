@@ -148,8 +148,8 @@ at::Tensor esimd_rms_norm(
         "esimd_rms_norm: output must match hidden_states dtype"
     );
     TORCH_CHECK(
-        hidden_states.dim() == 2,
-        "esimd_rms_norm: hidden_states must be a 2D tensor"
+        hidden_states.dim() >= 2,
+        "esimd_rms_norm: hidden_states must have at least 2 dimensions"
     );
     TORCH_CHECK(
         weight.dim() == 1,
@@ -160,8 +160,10 @@ at::Tensor esimd_rms_norm(
         "esimd_rms_norm: output shape must match hidden_states"
     );
 
-    int rows = (int)hidden_states.size(0);
-    int K = (int)hidden_states.size(1);
+    int K = (int)hidden_states.size(hidden_states.dim() - 1);
+    int64_t rows64 = hidden_states.numel() / K;
+    TORCH_CHECK(rows64 <= std::numeric_limits<int>::max(), "esimd_rms_norm: flattened rows exceed int range");
+    int rows = (int)rows64;
 
     TORCH_CHECK(
         weight.size(0) == K,

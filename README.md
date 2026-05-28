@@ -10,7 +10,7 @@
 
 其中 `esimd_fused_add_rms_norm_batched` 支持 `fp16` 和 `bf16`。它的 dtype 判断方式不是靠 Python 侧额外传字符串或枚举，而是直接在 XPU 入口里根据 `hidden_states.scalar_type()` 判定；`residual` 和 `weight` 必须与 `hidden_states` 保持同 dtype。
 
-`esimd_rms_norm` 也支持 `fp16` 和 `bf16`，输入是 `[rows, K]` 的 2D tensor、`[K]` 的 weight，以及预分配好的 output。它不再从 Python 显式传 `vl/ks`，而是在 `csrc/xpu/esimd_kernels/rms_norm.h` 的 host path 里根据 `rows` 和 `K` 自动选择配置；当前要求 `K` 能被 `128` 整除。
+`esimd_rms_norm` 也支持 `fp16` 和 `bf16`，输入是 `[..., K]` 的 tensor、`[K]` 的 weight，以及预分配好的 output。内核会把最后一维当成 hidden size `K`，把前面的维度展平成 `rows` 后执行；`vl/ks` 在 `csrc/xpu/esimd_kernels/rms_norm.h` 的 host path 里自动选择，当前要求 `K` 能被 `128` 整除。
 
 ## 目录说明
 
@@ -93,7 +93,7 @@ Python 侧最小调用方式如下：
 import torch
 from custom_esimd_kernels_vllm import esimd_rms_norm
 
-hidden = torch.randn(128, 2560, device="xpu", dtype=torch.float16)
+hidden = torch.randn(2, 64, 2560, device="xpu", dtype=torch.float16)
 weight = torch.randn(2560, device="xpu", dtype=torch.float16)
 output = torch.empty_like(hidden)
 
