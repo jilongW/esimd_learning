@@ -6,18 +6,22 @@
 - `esimd_gemv_fp8_pert`
 - `esimd_gemm_fp8_pert`
 - `esimd_fused_add_rms_norm_batched`
+- `esimd_rms_norm`
 
 其中 `esimd_fused_add_rms_norm_batched` 支持 `fp16` 和 `bf16`。它的 dtype 判断方式不是靠 Python 侧额外传字符串或枚举，而是直接在 XPU 入口里根据 `hidden_states.scalar_type()` 判定；`residual` 和 `weight` 必须与 `hidden_states` 保持同 dtype。
+
+`esimd_rms_norm` 也支持 `fp16` 和 `bf16`，输入是 `[rows, K]` 的 2D tensor、`[K]` 的 weight，以及预分配好的 output。它不再从 Python 显式传 `vl/ks`，而是在 `csrc/xpu/esimd_kernels/rms_norm.h` 的 host path 里根据 `rows` 和 `K` 自动选择配置；当前要求 `K` 能被 `128` 整除。
 
 ## 目录说明
 
 - `setup.py`：编译入口。
 - `esimd_build_extention.py`：本地 BuildExtension，负责调用 PyTorch 的扩展编译流程。
-- `csrc/xpu/esimd_kernel.sycl`：`esimd_gemv_fp8_*` 和 `esimd_fused_add_rms_norm_batched` 的 SYCL 入口实现。
+- `csrc/xpu/esimd_kernel.sycl`：`esimd_gemv_fp8_*`、`esimd_fused_add_rms_norm_batched` 和 `esimd_rms_norm` 的 SYCL 入口实现。
 - `csrc/xpu/torch_extension.cc`：PyTorch dispatcher 注册。
 - `python/custom_esimd_kernels_vllm/`：Python 导入与包装层。
 - `tests/test_gemv_fp8.py`：最小测试入口。
 - `tests/test_fused_add_rms_norm_batched_fp8.py`：fused residual add + RMSNorm 的正确性与性能测试。
+- `tests/test_rms_norm.py`：standalone RMSNorm 的正确性与性能测试，并对比 `torch.ops._C.rms_norm`。
 
 ## 环境要求
 
@@ -69,6 +73,31 @@ source /home/edgeai/miniforge3/etc/profile.d/conda.sh
 conda activate down
 source /opt/intel/oneapi/setvars.sh
 python tests/test_gemv_fp8.py
+```
+
+如果你要验证 standalone RMSNorm，可以运行：
+
+```bash
+cd /home/edgeai/esimd_learning
+source /home/edgeai/miniforge3/etc/profile.d/conda.sh
+conda activate down
+source /opt/intel/oneapi/setvars.sh
+python tests/test_rms_norm.py
+```
+
+这个脚本会先做正确性检查，再打印 `esimd_rms_norm` 和 `torch.ops._C.rms_norm` 的 latency、TFLOPS、memory bandwidth，并在 `Config` 列里显示当前自动选择出的 `auto=vl:ks`。
+
+Python 侧最小调用方式如下：
+
+```python
+import torch
+from custom_esimd_kernels_vllm import esimd_rms_norm
+
+hidden = torch.randn(128, 2560, device="xpu", dtype=torch.float16)
+weight = torch.randn(2560, device="xpu", dtype=torch.float16)
+output = torch.empty_like(hidden)
+
+esimd_rms_norm(hidden, weight, 1e-6, output)
 ```
 
 如果你要顺手拉起 standalone OpenCL FP16 GEMM 压测，可以运行新增的 [tests/test_cm_fp16_gemm.py](/llm/cm/esimd_learning/tests/test_cm_fp16_gemm.py)。这个测试默认不会参与常规 pytest，需要显式打开；推荐从 [cm.gemm.examples.kernels](cm.gemm.examples.kernels) 目录触发，这样编译和运行入口都放在 GEMM 工程这一侧：

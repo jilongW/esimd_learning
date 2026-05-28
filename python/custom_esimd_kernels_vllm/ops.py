@@ -46,6 +46,22 @@ def esimd_fused_add_rms_norm_batched(
     return _ops.esimd_fused_add_rms_norm_batched(hidden_states, residual, weight, eps)
 
 
+def esimd_rms_norm(
+    hidden_states: torch.Tensor,
+    weight: torch.Tensor,
+    eps: float,
+    output: torch.Tensor,
+) -> torch.Tensor:
+    """Batched RMSNorm.
+
+    hidden_states: [rows, K] fp16 or bf16, where K is a multiple of 512.
+    weight: [K] with the same dtype as hidden_states.
+    output: preallocated output tensor with the same shape and dtype as hidden_states.
+    VL/KS are selected automatically inside the XPU kernel host path.
+    """
+    return _ops.esimd_rms_norm(hidden_states, weight, eps, output)
+
+
 def esimd_gemm_fp8_pert(
     input: torch.Tensor, weight: torch.Tensor, weight_scale: torch.Tensor,
     output: torch.Tensor,

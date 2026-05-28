@@ -8,6 +8,7 @@
 
 #include "esimd_kernels/fp8_GEMV_v2.h"
 #include "esimd_kernels/fused_add_rms_norm_batched.h"
+#include "esimd_kernels/rms_norm.h"
 #include "esimd_kernels/resadd_norm_gemv_fused.h"
 
 #define EXTRACT_PTR(var, tensor) auto var = reinterpret_cast<uint8_t*>(tensor.data_ptr())
@@ -125,6 +126,62 @@ at::Tensor esimd_fused_add_rms_norm_batched(
         dpcpp_queue);
 
     return hidden_states;
+}
+
+at::Tensor esimd_rms_norm(
+    at::Tensor hidden_states,
+    at::Tensor weight,
+    double eps,
+    at::Tensor output)
+{
+    TORCH_CHECK(
+        hidden_states.scalar_type() == at::ScalarType::Half ||
+            hidden_states.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_rms_norm: hidden_states must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        weight.scalar_type() == hidden_states.scalar_type(),
+        "esimd_rms_norm: weight must match hidden_states dtype"
+    );
+    TORCH_CHECK(
+        output.scalar_type() == hidden_states.scalar_type(),
+        "esimd_rms_norm: output must match hidden_states dtype"
+    );
+    TORCH_CHECK(
+        hidden_states.dim() == 2,
+        "esimd_rms_norm: hidden_states must be a 2D tensor"
+    );
+    TORCH_CHECK(
+        weight.dim() == 1,
+        "esimd_rms_norm: weight must be a 1D tensor"
+    );
+    TORCH_CHECK(
+        output.sizes() == hidden_states.sizes(),
+        "esimd_rms_norm: output shape must match hidden_states"
+    );
+
+    int rows = (int)hidden_states.size(0);
+    int K = (int)hidden_states.size(1);
+
+    TORCH_CHECK(
+        weight.size(0) == K,
+        "esimd_rms_norm: weight size must match hidden_states last dimension"
+    );
+    TORCH_CHECK(K % 128 == 0, "esimd_rms_norm: hidden size must be divisible by 128");
+
+    auto& dpcpp_queue = get_device_queue(hidden_states);
+
+    rms_norm_host(
+        reinterpret_cast<const uint8_t*>(hidden_states.data_ptr()),
+        reinterpret_cast<const uint8_t*>(weight.data_ptr()),
+        reinterpret_cast<uint8_t*>(output.data_ptr()),
+        rows,
+        K,
+        (float)eps,
+        hidden_states.scalar_type() == at::ScalarType::BFloat16,
+        dpcpp_queue);
+
+    return output;
 }
 
 // ---- Fused ResidualAdd + RMSNorm + FP8 GEMV ----
