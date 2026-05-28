@@ -9,6 +9,7 @@ from .ops import (
     esimd_gemv_fp8_pert,
     esimd_fused_add_rms_norm_batched,
     esimd_rms_norm,
+    esimd_norm_gemv_fp8_pert,
     esimd_gemm_fp8_pert,
     esimd_resadd_norm_gemv_fp8_pert,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "esimd_gemv_fp8_pert",
     "esimd_fused_add_rms_norm_batched",
     "esimd_rms_norm",
+    "esimd_norm_gemv_fp8_pert",
     "esimd_gemm_fp8_pert",
     "esimd_resadd_norm_gemv_fp8_pert",
 ]

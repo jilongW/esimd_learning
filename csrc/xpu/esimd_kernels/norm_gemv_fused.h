@@ -1,0 +1,173 @@
+/* norm_gemv_fused.h — Fused RMSNorm + FP8 GEMV for GDN out_proj.
+ *
+ * Combines two operations into a single kernel:
+ *   1. RMSNorm: normed = x / rms(x) * weight
+ *   2. GEMV: output = normed @ dequant(gemv_weight^T) * scale
+ *
+ * Designed for decode shapes such as:
+ *   x:           [1, K] fp16      (e.g. [1, 2560])
+ *   norm_weight: [K] fp16         (e.g. [2560])
+ *   gemv_weight: [N, K] FP8       (e.g. [20480, 2560])
+ *   gemv_scale:  [1] float32
+ *   output:      [N] fp16
+ *
+ * Dispatch is aligned with the tuned GEMV path: VL and K_SPLIT are selected
+ * from N/K, and the kernel uses nd_range(global=N*K_SPLIT, local=K_SPLIT).
+ */
+
+#pragma once
+#include "utils.h"
+
+template<int VL>
+SYCL_ESIMD_FUNCTION inline simd<float, VL> fp8_dequant_norm(
+    simd<uint8_t, VL> raw, int fp8_mode) {
+    simd<uint16_t, VL> u16 = convert<uint16_t>(raw);
+    simd<uint16_t, VL> fp8_sign = (u16 >> 7) & 1;
+    simd<uint16_t, VL> fp16_bits;
+
+    if (fp8_mode == 0) {
+        simd<uint16_t, VL> fp8_exp  = (u16 >> 3) & 0xF;
+        simd<uint16_t, VL> fp8_mant = u16 & 0x7;
+        fp16_bits = (fp8_sign << 15) | ((fp8_exp + 8) << 10) | (fp8_mant << 7);
+        fp16_bits.merge(fp8_sign << 15, fp8_exp == 0);
+    } else {
+        simd<uint16_t, VL> fp8_exp  = (u16 >> 2) & 0x1F;
+        simd<uint16_t, VL> fp8_mant = u16 & 0x3;
+        fp16_bits = (fp8_sign << 15) | (fp8_exp << 10) | (fp8_mant << 8);
+        fp16_bits.merge(fp8_sign << 15, fp8_exp == 0);
+    }
+
+    simd<fp16, VL> wh = fp16_bits.template bit_cast_view<fp16>().read();
+    return simd<float, VL>(wh);
+}
+
+/* ================================================================
+ * Kernel: Fused RMSNorm + FP8 GEMV (per-tensor scale)
+ * Dispatch follows the same VL/K_SPLIT strategy as resadd_norm_gemv.
+ * ================================================================ */
+template<int VL, int K_SPLIT>
+struct NormGEMV_fp8_pert_kernel {
+    const fp16*    x_ptr;        // [1, K]
+    const fp16*    norm_w_ptr;   // [K]
+    const uint8_t* gemv_weight;  // [N, K] FP8
+    const float*   gemv_scale;   // [1] per-tensor scale
+    fp16*          output;       // [N]
+    int N;
+    int K;
+    float eps;
+    int fp8_mode;
+
+    void operator()(sycl::nd_item<1> item) const SYCL_ESIMD_KERNEL {
+        if constexpr (K_SPLIT > 1) {
+            slm_init<K_SPLIT * sizeof(float)>();
+        }
+
+        int n = item.get_group(0);
+        int lid = item.get_local_id(0);
+        if (n >= N) return;
+
+        int k_per_thread = K / K_SPLIT;
+        int k_start = lid * k_per_thread;
+        int n_chunks = k_per_thread / VL;
+
+        float sum_sq = 0.0f;
+
+        for (int c = 0; c < n_chunks; c++) {
+            int offset = k_start + c * VL;
+            simd<float, VL> x_f = block_load<fp16, VL>(x_ptr + offset);
+            simd<float, VL> x_sq = x_f * x_f;
+            sum_sq += reduce<float>(x_sq, std::plus<>());
+        }
+
+        float inv_rms = 0.0f;
+
+        if constexpr (K_SPLIT == 1) {
+            inv_rms = sycl::ext::intel::esimd::rsqrt(
+                simd<float, 8>(sum_sq / (float)K + eps))[0];
+        } else {
+            slm_block_store<float, 1>(lid * sizeof(float), simd<float, 1>(sum_sq));
+            barrier();
+            if (lid == 0) {
+                simd<float, K_SPLIT> parts = slm_block_load<float, K_SPLIT>(0);
+                float total_sum_sq = reduce<float>(parts, std::plus<>());
+                inv_rms = sycl::ext::intel::esimd::rsqrt(
+                    simd<float, 8>(total_sum_sq / (float)K + eps))[0];
+                slm_block_store<float, 1>(0, simd<float, 1>(inv_rms));
+            }
+            barrier();
+            inv_rms = slm_block_load<float, 1>(0)[0];
+            barrier();
+        }
+
+        simd<float, VL> acc = 0.0f;
+
+        for (int c = 0; c < n_chunks; c++) {
+            int offset = k_start + c * VL;
+
+            simd<float, VL> x_f = block_load<fp16, VL>(x_ptr + offset);
+            simd<float, VL> norm_w = block_load<fp16, VL>(norm_w_ptr + offset);
+            simd<float, VL> normed = x_f * inv_rms * norm_w;
+
+            simd<uint8_t, VL> w_raw = block_load<uint8_t, VL>(
+                gemv_weight + (size_t)n * K + offset);
+            simd<float, VL> w_f = fp8_dequant_norm<VL>(w_raw, fp8_mode);
+            acc += normed * w_f;
+        }
+
+        float my_sum = reduce<float>(acc, std::plus<>()) * gemv_scale[0];
+
+        if constexpr (K_SPLIT == 1) {
+            output[n] = fp16(my_sum);
+        } else {
+            slm_block_store<float, 1>(lid * sizeof(float), simd<float, 1>(my_sum));
+            barrier();
+            if (lid == 0) {
+                simd<float, K_SPLIT> parts = slm_block_load<float, K_SPLIT>(0);
+                output[n] = fp16(reduce<float>(parts, std::plus<>()));
+            }
+        }
+    }
+};
+
+/* Host dispatcher */
+inline void norm_gemv_fp8_pert_host(
+    const fp16* x_ptr,
+    const fp16* norm_w_ptr,
+    const uint8_t* gemv_weight,
+    const float* gemv_scale,
+    fp16* output,
+    int N, int K,
+    float eps,
+    int fp8_mode,
+    sycl::queue& q)
+{
+    int vl, ks;
+    select_vl_ks_pert(N, K, vl, ks);
+
+    int global = N * ks;
+    int local = ks;
+
+    #define LAUNCH_NORM_GEMV(V, S) \
+        q.submit([&](sycl::handler& cgh) { \
+            cgh.parallel_for( \
+                sycl::nd_range<1>(global, local), \
+                NormGEMV_fp8_pert_kernel<V, S>{ \
+                    x_ptr, norm_w_ptr, gemv_weight, gemv_scale, output, \
+                    N, K, eps, fp8_mode}); \
+        });
+
+    if (vl == 512 && ks == 1) { LAUNCH_NORM_GEMV(512, 1) }
+    else if (vl == 512 && ks == 2) { LAUNCH_NORM_GEMV(512, 2) }
+    else if (vl == 256 && ks == 1) { LAUNCH_NORM_GEMV(256, 1) }
+    else if (vl == 256 && ks == 2) { LAUNCH_NORM_GEMV(256, 2) }
+    else if (vl == 256 && ks == 4) { LAUNCH_NORM_GEMV(256, 4) }
+    else if (vl == 256 && ks == 8) { LAUNCH_NORM_GEMV(256, 8) }
+    else if (vl == 128 && ks == 1) { LAUNCH_NORM_GEMV(128, 1) }
+    else if (vl == 128 && ks == 2) { LAUNCH_NORM_GEMV(128, 2) }
+    else if (vl == 128 && ks == 4) { LAUNCH_NORM_GEMV(128, 4) }
+    else if (vl == 128 && ks == 8) { LAUNCH_NORM_GEMV(128, 8) }
+    else if (vl == 128 && ks == 10) { LAUNCH_NORM_GEMV(128, 10) }
+    else { LAUNCH_NORM_GEMV(128, 1) }
+
+    #undef LAUNCH_NORM_GEMV
+}

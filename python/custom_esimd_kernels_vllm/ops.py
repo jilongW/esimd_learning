@@ -79,6 +79,32 @@ def esimd_rms_norm(
     return _ops.esimd_rms_norm(hidden_states, weight, eps, output, vl, ks)
 
 
+def esimd_norm_gemv_fp8_pert(
+    hidden_states: torch.Tensor,
+    norm_weight: torch.Tensor,
+    gemv_weight: torch.Tensor,
+    gemv_scale: torch.Tensor,
+    output: torch.Tensor,
+    eps: float,
+) -> torch.Tensor:
+    """Fused RMSNorm + FP8 GEMV with per-tensor scale.
+
+    hidden_states: [1, K] fp16.
+    norm_weight: [K] fp16.
+    gemv_weight: [N, K] fp8.
+    gemv_scale: scalar fp32.
+    output: [1, N] or [N] fp16.
+    """
+    return _ops.esimd_norm_gemv_fp8_pert(
+        hidden_states,
+        norm_weight,
+        gemv_weight,
+        gemv_scale,
+        output,
+        eps,
+    )
+
+
 def esimd_gemm_fp8_pert(
     input: torch.Tensor, weight: torch.Tensor, weight_scale: torch.Tensor,
     output: torch.Tensor,

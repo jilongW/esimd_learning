@@ -32,6 +32,14 @@ at::Tensor esimd_rms_norm(
     at::Tensor hidden_states, at::Tensor weight,
     double eps, at::Tensor output, int64_t vl, int64_t ks);
 
+at::Tensor esimd_norm_gemv_fp8_pert(
+    at::Tensor hidden_states,
+    at::Tensor norm_weight,
+    at::Tensor gemv_weight,
+    at::Tensor gemv_scale,
+    at::Tensor output,
+    double eps);
+
 // FP8 GEMM per-tensor scale: input/output [M, K]/[M, N] fp16 or bf16 (matching dtype),
 // weight [N, K] fp8.
 // Auto-dispatches: M<=3 → batched GEMV, M>=2 E4M3 → DPAS V9, else → WS

@@ -8,6 +8,7 @@
 
 #include "esimd_kernels/fp8_GEMV_v2.h"
 #include "esimd_kernels/fused_add_rms_norm_batched.h"
+#include "esimd_kernels/norm_gemv_fused.h"
 #include "esimd_kernels/rms_norm.h"
 #include "esimd_kernels/resadd_norm_gemv_fused.h"
 
@@ -308,6 +309,68 @@ at::Tensor esimd_rms_norm(
         (int)vl,
         (int)ks,
         hidden_states.scalar_type() == at::ScalarType::BFloat16,
+        dpcpp_queue);
+
+    return output;
+}
+
+at::Tensor esimd_norm_gemv_fp8_pert(
+    at::Tensor hidden_states,
+    at::Tensor norm_weight,
+    at::Tensor gemv_weight,
+    at::Tensor gemv_scale,
+    at::Tensor output,
+    double eps)
+{
+    int N = (int)gemv_weight.size(0);
+    int K = (int)gemv_weight.size(1);
+    int fp8_mode = get_fp8_mode(gemv_weight);
+
+    TORCH_CHECK(
+        hidden_states.scalar_type() == at::ScalarType::Half,
+        "esimd_norm_gemv_fp8_pert: hidden_states must be fp16"
+    );
+    TORCH_CHECK(
+        norm_weight.scalar_type() == at::ScalarType::Half,
+        "esimd_norm_gemv_fp8_pert: norm_weight must be fp16"
+    );
+    TORCH_CHECK(
+        output.scalar_type() == at::ScalarType::Half,
+        "esimd_norm_gemv_fp8_pert: output must be fp16"
+    );
+    TORCH_CHECK(
+        hidden_states.dim() == 2 && hidden_states.size(0) == 1,
+        "esimd_norm_gemv_fp8_pert: hidden_states must have shape [1, K]"
+    );
+    TORCH_CHECK(
+        norm_weight.dim() == 1 && norm_weight.size(0) == K,
+        "esimd_norm_gemv_fp8_pert: norm_weight must have shape [K]"
+    );
+    TORCH_CHECK(
+        gemv_scale.scalar_type() == at::ScalarType::Float,
+        "esimd_norm_gemv_fp8_pert: gemv_scale must be float32"
+    );
+    TORCH_CHECK(
+        gemv_scale.numel() == 1,
+        "esimd_norm_gemv_fp8_pert: gemv_scale must be a scalar"
+    );
+    TORCH_CHECK(
+        output.numel() == N,
+        "esimd_norm_gemv_fp8_pert: output must have N elements"
+    );
+
+    auto& dpcpp_queue = get_device_queue(hidden_states);
+
+    norm_gemv_fp8_pert_host(
+        reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
+        reinterpret_cast<const fp16*>(norm_weight.data_ptr()),
+        reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+        gemv_scale.data_ptr<float>(),
+        reinterpret_cast<fp16*>(output.data_ptr()),
+        N,
+        K,
+        (float)eps,
+        fp8_mode,
         dpcpp_queue);
 
     return output;
