@@ -33,6 +33,59 @@ BUILD_DIR = CM_GEMM_DIR / "build_pytest"
 LIB_NAME = "libcm_fp16_gemm.so"
 
 
+def _select_esimd_gemv_vl_ks(n: int, k: int) -> tuple[int, int]:
+    supported_configs = {
+        (512, 1),
+        (512, 2),
+        (256, 1),
+        (256, 2),
+        (256, 4),
+        (256, 8),
+        (128, 1),
+        (128, 2),
+        (128, 4),
+        (128, 8),
+        (128, 10),
+    }
+    if k < 256:
+        vl, ks = 128, 1
+    elif k == 256:
+        vl, ks = 128, 2
+    elif k >= 10240:
+        vl, ks = 128, 10
+    elif k >= 4096:
+        vl, ks = 256, 4
+    elif k >= 2560 and n >= 10240:
+        vl, ks = 512, 1
+    elif k >= 2560:
+        vl, ks = 128, 10
+    elif k >= 2048:
+        vl, ks = 256, 8
+    else:
+        vl, ks = 512, 1
+
+    kpt = k // ks
+    while vl > kpt or kpt % vl != 0:
+        if vl > 128:
+            vl //= 2
+        elif ks == 10:
+            ks = 8
+        elif ks == 8:
+            ks = 4
+        elif ks == 4:
+            ks = 2
+        elif ks == 2:
+            ks = 1
+        else:
+            break
+        kpt = k // ks
+
+    if (vl, ks) not in supported_configs:
+        raise ValueError(f"Unsupported GEMV vl/ks for n={n}, k={k}: {vl}/{ks}")
+
+    return vl, ks
+
+
 def _env_flag(name: str) -> bool:
     value = os.getenv(name)
     return value is not None and value.strip().lower() in {"1", "true", "yes", "on"}
@@ -544,7 +597,8 @@ def run_cm_vs_esimd_gemv_vs_vllm_vs_esimd_gemm() -> None:
         )
         # _verify_output(cm_host_a, weight_fp16_copies[0], cm_host_c, cm_m, n, k)
 
-        esimd_gemv_fp8_pern(input_t, weight_fp8_copies[0], scale_pern, out_esimd_gemv, n, k)
+        vl, ks = _select_esimd_gemv_vl_ks(n, k)
+        esimd_gemv_fp8_pern(input_t, weight_fp8_copies[0], scale_pern, out_esimd_gemv, n, k, vl, ks)
         out_vllm = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, weight_fp8_copies[0].t(), scale_pern, None)
         esimd_gemm_fp8_pert(input_t, weight_fp8_copies[0], scale_pert, out_esimd_gemm)
 
@@ -599,11 +653,11 @@ def run_cm_vs_esimd_gemv_vs_vllm_vs_esimd_gemm() -> None:
         cm_us = (time.perf_counter() - t0) / num_iters * 1e6
         time.sleep(2)
         for i in range(10):
-            esimd_gemv_fp8_pern(input_t, weight_fp8_copies[i % num_copies], scale_pern, out_esimd_gemv, n, k)
+            esimd_gemv_fp8_pern(input_t, weight_fp8_copies[i % num_copies], scale_pern, out_esimd_gemv, n, k, vl, ks)
         torch.xpu.synchronize()
         t0 = time.perf_counter()
         for i in range(num_iters):
-            esimd_gemv_fp8_pern(input_t, weight_fp8_copies[i % num_copies], scale_pern, out_esimd_gemv, n, k)
+            esimd_gemv_fp8_pern(input_t, weight_fp8_copies[i % num_copies], scale_pern, out_esimd_gemv, n, k, vl, ks)
         torch.xpu.synchronize()
         esimd_gemv_us = (time.perf_counter() - t0) / num_iters * 1e6
         time.sleep(2)

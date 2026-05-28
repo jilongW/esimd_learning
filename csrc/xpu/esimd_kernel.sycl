@@ -21,10 +21,16 @@ static inline sycl::queue& get_device_queue(const at::Tensor& tensor) {
     return c10::xpu::getCurrentXPUStream(tensor.device().index()).queue();
 }
 
+static inline bool is_supported_gemv_fp8_pern_config(int64_t vl, int64_t ks) {
+    return (vl == 512 && (ks == 1 || ks == 2)) ||
+           (vl == 256 && (ks == 1 || ks == 2 || ks == 4 || ks == 8)) ||
+           (vl == 128 && (ks == 1 || ks == 2 || ks == 4 || ks == 8 || ks == 10));
+}
+
 at::Tensor esimd_gemv_fp8_pern(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
     at::Tensor output,
-    int64_t N, int64_t K) {
+    int64_t N, int64_t K, int64_t vl, int64_t ks) {
     TORCH_CHECK(
         input.scalar_type() == at::ScalarType::Half || input.scalar_type() == at::ScalarType::BFloat16,
         "esimd_gemv_fp8_pern: input must be fp16 or bf16"
@@ -37,6 +43,30 @@ at::Tensor esimd_gemv_fp8_pern(
         input.scalar_type() == output.scalar_type(),
         "esimd_gemv_fp8_pern: input and output must have the same dtype"
     );
+    TORCH_CHECK(
+        vl == 128 || vl == 256 || vl == 512,
+        "esimd_gemv_fp8_pern: vl must be one of 128, 256, 512"
+    );
+    TORCH_CHECK(
+        ks == 1 || ks == 2 || ks == 4 || ks == 8 || ks == 10,
+        "esimd_gemv_fp8_pern: ks must be one of 1, 2, 4, 8, 10"
+    );
+    TORCH_CHECK(
+        is_supported_gemv_fp8_pern_config(vl, ks),
+        "esimd_gemv_fp8_pern: unsupported vl/ks combination"
+    );
+    TORCH_CHECK(
+        K % ks == 0,
+        "esimd_gemv_fp8_pern: K must be divisible by ks"
+    );
+    TORCH_CHECK(
+        K % vl == 0,
+        "esimd_gemv_fp8_pern: K must be divisible by vl"
+    );
+    TORCH_CHECK(
+        (K / ks) % vl == 0,
+        "esimd_gemv_fp8_pern: K / ks must be divisible by vl"
+    );
     EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
     EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
     auto& dpcpp_queue = get_device_queue(input);
@@ -47,6 +77,8 @@ at::Tensor esimd_gemv_fp8_pern(
         p_out,
         N,
         K,
+        (int)vl,
+        (int)ks,
         input.scalar_type() == at::ScalarType::BFloat16,
         output.scalar_type() == at::ScalarType::BFloat16,
         get_fp8_mode(weight),
@@ -132,7 +164,9 @@ at::Tensor esimd_rms_norm(
     at::Tensor hidden_states,
     at::Tensor weight,
     double eps,
-    at::Tensor output)
+    at::Tensor output,
+    int64_t vl,
+    int64_t ks)
 {
     TORCH_CHECK(
         hidden_states.scalar_type() == at::ScalarType::Half ||
@@ -169,7 +203,22 @@ at::Tensor esimd_rms_norm(
         weight.size(0) == K,
         "esimd_rms_norm: weight size must match hidden_states last dimension"
     );
-    TORCH_CHECK(K % 128 == 0, "esimd_rms_norm: hidden size must be divisible by 128");
+    TORCH_CHECK(
+        vl == 128 || vl == 256 || vl == 512 || vl == 1024,
+        "esimd_rms_norm: vl must be one of 128, 256, 512, 1024"
+    );
+    TORCH_CHECK(
+        ks == 1 || ks == 2 || ks == 5 || ks == 8 || ks == 10,
+        "esimd_rms_norm: ks must be one of 1, 2, 5, 8, 10"
+    );
+    TORCH_CHECK(
+        K % (int)vl == 0,
+        "esimd_rms_norm: hidden size must be divisible by vl"
+    );
+    TORCH_CHECK(
+        ((int64_t)vl * ks < K) || (K == 256 && vl == 256 && ks == 1),
+        "esimd_rms_norm: vl * ks must be smaller than hidden size unless using the 256:1 specialization"
+    );
 
     auto& dpcpp_queue = get_device_queue(hidden_states);
 
@@ -180,6 +229,8 @@ at::Tensor esimd_rms_norm(
         rows,
         K,
         (float)eps,
+        (int)vl,
+        (int)ks,
         hidden_states.scalar_type() == at::ScalarType::BFloat16,
         dpcpp_queue);
 

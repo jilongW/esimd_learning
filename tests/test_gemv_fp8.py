@@ -4,12 +4,127 @@ Test esimd_gemv_fp8_pern kernel — FP8 GEMV with per-N scale, FP32 accumulation
 Correctness: compare against FP16 dequant reference (torch matmul).
 Performance: benchmark Qwen3-Next-80B-A3B TP4 projection shapes.
 """
+import gc
 import torch
 import time
 from vllm.platforms import current_platform
 
 device = torch.device("xpu")
 DUMP_PATH = "/home/edgeai/applications.ai.gpu.vllm-xpu/xpu_fp8_assert_dump_1778481474998.pt"
+VL_CANDIDATES = (128, 256, 512)
+KS_CANDIDATES = (1, 2, 4, 8, 10)
+SUPPORTED_GEMV_CONFIGS = {
+    (512, 1),
+    (512, 2),
+    (256, 1),
+    (256, 2),
+    (256, 4),
+    (256, 8),
+    (128, 1),
+    (128, 2),
+    (128, 4),
+    (128, 8),
+    (128, 10),
+}
+
+
+def select_vl_ks(N: int, K: int) -> tuple[int, int]:
+    if K < 256:
+        vl, ks = 128, 1
+    elif K == 256:
+        vl, ks = 128, 2
+    elif K >= 10240:
+        vl, ks = 128, 10
+    elif K >= 4096:
+        vl, ks = 256, 4
+    elif K >= 2560 and N >= 10240:
+        vl, ks = 512, 1
+    elif K >= 2560:
+        vl, ks = 128, 10
+    elif K >= 2048:
+        vl, ks = 256, 8
+    else:
+        vl, ks = 512, 1
+
+    kpt = K // ks
+    while vl > kpt or kpt % vl != 0:
+        if vl > 128:
+            vl //= 2
+        elif ks == 10:
+            ks = 8
+        elif ks == 8:
+            ks = 4
+        elif ks == 4:
+            ks = 2
+        elif ks == 2:
+            ks = 1
+        else:
+            break
+        kpt = K // ks
+
+    if (vl, ks) not in _valid_vl_ks(K):
+        raise ValueError(f"No valid vl/ks for N={N}, K={K}")
+    return vl, ks
+
+
+def _valid_vl_ks(K: int) -> list[tuple[int, int]]:
+    valid = []
+    for vl in VL_CANDIDATES:
+        if K % vl != 0:
+            continue
+        for ks in KS_CANDIDATES:
+            if (vl, ks) not in SUPPORTED_GEMV_CONFIGS:
+                continue
+            if K % ks != 0:
+                continue
+            if (K // ks) % vl != 0:
+                continue
+            valid.append((vl, ks))
+    return valid
+
+
+def _run_pern_auto(input_t, weight_fp8, scale, output, N, K):
+    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pern
+
+    vl, ks = select_vl_ks(N, K)
+    esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K, vl, ks)
+    return output
+
+
+def _benchmark_one(run_fn, output_fn, iters: int) -> tuple[float, list[float]]:
+    for _ in range(10):
+        run_fn(0)
+    torch.xpu.synchronize()
+
+    outputs = []
+    t0 = time.perf_counter()
+    for index in range(iters):
+        run_fn(index)
+        output = output_fn()
+        sample_index = [0] * output.dim()
+        if output.dim() >= 2:
+            sample_index[1] = index % output.size(1)
+        else:
+            sample_index[0] = index % output.size(0)
+        outputs.append(float(output[tuple(sample_index)]))
+    torch.xpu.synchronize()
+    elapsed_us = (time.perf_counter() - t0) * 1e6 / iters
+    gc.collect()
+    if hasattr(torch.xpu, "empty_cache"):
+        torch.xpu.empty_cache()
+    return elapsed_us, outputs
+
+
+def _assert_output_lists_close(esimd_outputs: list[float], ref_outputs: list[float]) -> None:
+    assert len(esimd_outputs) == len(ref_outputs), (
+        f"output list length mismatch: esimd={len(esimd_outputs)} ref={len(ref_outputs)}"
+    )
+    for index, (esimd_out, ref_out) in enumerate(zip(esimd_outputs, ref_outputs)):
+        max_diff = abs(esimd_out - ref_out)
+        scale = max(abs(esimd_out), abs(ref_out), 1e-6)
+        assert max_diff < 1.0 or (max_diff / scale) < 0.05, (
+            f"benchmark output mismatch at iter={index}, diff={max_diff:.4f}"
+        )
 
 
 def test_correctness_basic():
@@ -26,7 +141,7 @@ def test_correctness_basic():
         input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
         output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K)
+        _run_pern_auto(input_t, weight_fp8, scale, output, N, K)
 
         weight_dequant = weight_fp8.to(torch.float16)
         ref = input_t.float() @ weight_dequant.float().T
@@ -53,7 +168,7 @@ def test_correctness_with_scale():
         input_t = torch.rand(1, K, dtype=torch.float16, device=device) * 0.1
         output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K)
+        _run_pern_auto(input_t, weight_fp8, scale, output, N, K)
 
         weight_dequant = weight_fp8.to(torch.float16)
         ref = (input_t.float() @ weight_dequant.float().T) * scale.float().unsqueeze(0)
@@ -94,7 +209,7 @@ def test_pern_replay_from_assert_dump():
     print("scale shape:", scale.shape, "dtype:", scale.dtype)
     print("output shape:", output.shape, "dtype:", output.dtype)
     print("ref shape:", ref.shape, "dtype:", ref.dtype)
-    esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K)
+    _run_pern_auto(input_t, weight_fp8, scale, output, N, K)
 
     max_diff = (output.float() - ref.float()).abs().max().item()
     ref_max = ref.float().abs().max().item()
@@ -129,7 +244,7 @@ def benchmark_shapes():
 
     TARGET_BW = 112.0  # GB/s PTL
 
-    print(f"\n{'Shape':<30} {'N':>6} {'K':>6} {'KB':>7} | {'GB/s':>8} {'BW%':>7} {'us':>8}")
+    print(f"\n{'Shape':<30} {'N':>6} {'K':>6} {'Config':>17} | {'GB/s':>8} {'BW%':>7} {'us':>8}")
     print("-" * 70)
 
     for name, N, K in shapes:
@@ -155,32 +270,51 @@ def benchmark_shapes():
 
         ni = 4000 if total_bytes < 512 * 1024 else (1000 if total_bytes < 2 * 1024 * 1024 else 300)
 
-        # Warmup
-        for i in range(10):
-            esimd_gemv_fp8_pern(input_t, weights[i % nc], scale, output, N, K)
-        torch.xpu.synchronize()
+        heuristic_vl, heuristic_ks = select_vl_ks(N, K)
+        best_cfg = None
+        best_us = None
+        rule_us = None
 
-        # Timed
-        t0 = time.perf_counter()
-        for i in range(ni):
-            esimd_gemv_fp8_pern(input_t, weights[i % nc], scale, output, N, K)
-        torch.xpu.synchronize()
-        t1 = time.perf_counter()
+        for vl, ks in _valid_vl_ks(K):
+            candidate_us, _ = _benchmark_one(
+                lambda index, vl=vl, ks=ks: esimd_gemv_fp8_pern(
+                    input_t,
+                    weights[index % nc],
+                    scale,
+                    output,
+                    N,
+                    K,
+                    vl,
+                    ks,
+                ),
+                lambda: output,
+                ni,
+            )
+            if (vl, ks) == (heuristic_vl, heuristic_ks):
+                rule_us = candidate_us
+            if best_us is None or candidate_us < best_us:
+                best_cfg = (vl, ks)
+                best_us = candidate_us
 
-        ms = (t1 - t0) / ni * 1000
+        assert best_cfg is not None and rule_us is not None
+        ms = best_us / 1000
         bw = (total_bytes / 1e9) / (ms / 1e3)
         us = ms * 1000
         bw_pct = bw / TARGET_BW * 100
 
-        print(f"{name:<30} {N:>6} {K:>6} {total_bytes//1024:>6}K | {bw:>7.1f} {bw_pct:>6.1f}% {us:>7.2f}")
+        print(
+            f"{name:<30} {N:>6} {K:>6} "
+            f"rule={heuristic_vl}:{heuristic_ks}({rule_us:>7.2f}us) best={best_cfg[0]}:{best_cfg[1]}({best_us:>7.2f}us) | "
+            f"{bw:>7.1f} {bw_pct:>6.1f}% {us:>7.2f}"
+        )
 
 def test_esimd_vs_vllm():
     from custom_esimd_kernels_vllm import (
         esimd_gemv_fp8_pern, 
     )
 
-    def run_esimd_case(input_t, weight_t, scale_t, output_t, n, k):
-        esimd_gemv_fp8_pern(input_t, weight_t, scale_t, output_t, n, k)
+    def run_esimd_case(input_t, weight_t, scale_t, output_t, n, k, vl, ks):
+        esimd_gemv_fp8_pern(input_t, weight_t, scale_t, output_t, n, k, vl, ks)
         return output_t
 
     TARGET_BW = 112.0  # GB/s PTL
@@ -225,47 +359,61 @@ def test_esimd_vs_vllm():
         for dtype_name, io_dtype in dtype_cases:
             input_t = torch.randn(1, K, dtype=io_dtype, device=device) * 0.1
             output = torch.zeros(1, N, dtype=io_dtype, device=device)
+            heuristic_vl, heuristic_ks = select_vl_ks(N, K)
 
             # Total bytes: input + weight + scale + output
             element_bytes = torch.tensor([], dtype=io_dtype).element_size()
             total_bytes = K * element_bytes + N * K + N * 2 + N * element_bytes
 
             config = f"N={N} K={K} {dtype_name}"
-            ni = 4000
-
-            for warmup_idx in range(10):
-                run_esimd_case(input_t, weights[warmup_idx % nc], scale, output, N, K)
-                probe_idx = warmup_idx % min(256, N)
-                probe_val = output[0, probe_idx]
-                if torch.isinf(probe_val):
-                    raise AssertionError(
-                        f"o0[{probe_idx}] is inf at iter={warmup_idx}, N={N}, K={K}, dtype={dtype_name}, value={probe_val.item()}"
-                    )
-            torch.xpu.synchronize()
+            ni = 1000
+            vllm_output = [torch.zeros(1, N, dtype=io_dtype, device=device)]
+            vllm_us, vllm_outputs = _benchmark_one(
+                lambda index: vllm_output.__setitem__(
+                    0,
+                    torch.ops._xpu_C.fp8_gemm_w8a16(
+                        input_t, weights[index % nc].t(), scale, None
+                    ),
+                ),
+                lambda: vllm_output[0],
+                ni,
+            )
             time.sleep(1)
-            t0 = time.perf_counter()
-            for i in range(ni):
-                run_esimd_case(input_t, weights[i % nc], scale, output, N, K)
-            torch.xpu.synchronize()
-            indiv_us = (time.perf_counter() - t0) / ni * 1e6
+            best_cfg = None
+            best_outputs = None
+            indiv_us = None
+            rule_us = None
+            # print(_valid_vl_ks(K))
+            for vl, ks in _valid_vl_ks(K):
+                candidate_us, candidate_outputs = _benchmark_one(
+                    lambda index, vl=vl, ks=ks: run_esimd_case(
+                        input_t,
+                        weights[index % nc],
+                        scale,
+                        output,
+                        N,
+                        K,
+                        vl,
+                        ks,
+                    ),
+                    lambda: output,
+                    ni,
+                )
+                if (vl, ks) == (heuristic_vl, heuristic_ks):
+                    rule_us = candidate_us
+                # print(f"  Config N={N} K={K} {dtype_name} rule={vl}:{ks} latency={candidate_us:.2f}us")
+                if indiv_us is None or candidate_us < indiv_us:
+                    indiv_us = candidate_us
+                    best_cfg = (vl, ks)
+                    best_outputs = candidate_outputs
+                time.sleep(1)
+                
+
+            assert indiv_us is not None and best_cfg is not None and best_outputs is not None and rule_us is not None
+            _assert_output_lists_close(best_outputs, vllm_outputs)
 
             time.sleep(1)
-            for warmup_idx in range(10):
-                output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, weights[warmup_idx % nc].t(), scale, None)
-                probe_idx = warmup_idx % min(256, N)
-                probe_val = output[0, probe_idx]
-                if torch.isinf(probe_val):
-                    raise AssertionError(
-                        f"o0[{probe_idx}] is inf at iter={warmup_idx}, N={N}, K={K}, dtype={dtype_name}, value={probe_val.item()}"
-                    )
-            torch.xpu.synchronize()
-            time.sleep(1)
-            t0 = time.perf_counter()
-            for i in range(ni):
-                output = torch.ops._xpu_C.fp8_gemm_w8a16(input_t, weights[i % nc].t(), scale, None)
-            torch.xpu.synchronize()
-
-            vllm_us = (time.perf_counter() - t0) / ni * 1e6
+            
             flops = 2 * N * K
             indiv_tflops = flops / (indiv_us * 1e6) if indiv_us > 0 else 0
             vllm_tflops = flops / (vllm_us * 1e6) if vllm_us > 0 else 0
@@ -274,7 +422,7 @@ def test_esimd_vs_vllm():
 
             speedup = vllm_us / indiv_us if indiv_us > 0 else 0
             print(
-                f"{name:<30} {config:>20} | {indiv_us:>9.2f} {vllm_us:>9.2f} "
+                f"{name:<30} {config} rule={heuristic_vl}:{heuristic_ks}({rule_us:>7.2f}us) best={best_cfg[0]}:{best_cfg[1]}({indiv_us:>7.2f}us) | {indiv_us:>9.2f} {vllm_us:>9.2f} "
                 f"{indiv_tflops:>9.4f} {vllm_tflops:>9.4f} {indiv_bw:>11.2f} {vllm_bw:>11.2f} {speedup:>7.2f}x"
             )
 
@@ -310,16 +458,18 @@ def benchmark_fused():
         w0, s0, o0 = make_tensors(shapes[0][0], K)
         w1, s1, o1 = make_tensors(shapes[1][0], K)
         config = f"N=[{shapes[0][0]},{shapes[1][0]}] K={K}"
+        vl0, ks0 = select_vl_ks(shapes[0][0], K)
+        vl1, ks1 = select_vl_ks(shapes[1][0], K)
 
         # Warmup + bench individual
         for _ in range(10):
-            esimd_gemv_fp8_pern(input_t, w0, s0, o0, shapes[0][0], K)
-            esimd_gemv_fp8_pern(input_t, w1, s1, o1, shapes[1][0], K)
+            esimd_gemv_fp8_pern(input_t, w0, s0, o0, shapes[0][0], K, vl0, ks0)
+            esimd_gemv_fp8_pern(input_t, w1, s1, o1, shapes[1][0], K, vl1, ks1)
         torch.xpu.synchronize()
         t0 = time.perf_counter()
         for _ in range(ni):
-            esimd_gemv_fp8_pern(input_t, w0, s0, o0, shapes[0][0], K)
-            esimd_gemv_fp8_pern(input_t, w1, s1, o1, shapes[1][0], K)
+            esimd_gemv_fp8_pern(input_t, w0, s0, o0, shapes[0][0], K, vl0, ks0)
+            esimd_gemv_fp8_pern(input_t, w1, s1, o1, shapes[1][0], K, vl1, ks1)
         torch.xpu.synchronize()
         indiv_us = (time.perf_counter() - t0) / ni * 1e6
 
@@ -375,7 +525,7 @@ def test_pert_vs_pern():
         out_pern = torch.zeros(1, N, dtype=torch.float16, device=device)
         out_pert = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        esimd_gemv_fp8_pern(input_t, weight_fp8, scale_pern, out_pern, N, K)
+        _run_pern_auto(input_t, weight_fp8, scale_pern, out_pern, N, K)
         esimd_gemv_fp8_pert(input_t, weight_fp8, scale_pert, out_pert)
 
         # Not bit-identical due to fp16 vs fp32 scale precision, but should be very close
@@ -401,7 +551,7 @@ def test_e5m2_correctness_pern():
         input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
         output = torch.zeros(1, N, dtype=torch.float16, device=device)
 
-        esimd_gemv_fp8_pern(input_t, weight_fp8, scale, output, N, K)
+        _run_pern_auto(input_t, weight_fp8, scale, output, N, K)
 
         weight_dequant = weight_fp8.to(torch.float16)
         ref = (input_t.float() @ weight_dequant.float().T) * scale.float().unsqueeze(0)
@@ -462,8 +612,8 @@ def test_e5m2_fused():
 
     ref_o0 = torch.zeros(1, N0, dtype=torch.float16, device=device)
     ref_o1 = torch.zeros(1, N1, dtype=torch.float16, device=device)
-    esimd_gemv_fp8_pern(input_t, w0, s0, ref_o0, N0, K)
-    esimd_gemv_fp8_pern(input_t, w1, s1, ref_o1, N1, K)
+    _run_pern_auto(input_t, w0, s0, ref_o0, N0, K)
+    _run_pern_auto(input_t, w1, s1, ref_o1, N1, K)
 
    
 
@@ -492,7 +642,7 @@ def benchmark_e5m2():
 
     TARGET_BW = 450.0
 
-    print(f"\n{'Shape':<30} {'N':>6} {'K':>6} | {'E4M3 us':>9} {'E5M2 us':>9} {'E4M3 GB/s':>10} {'E5M2 GB/s':>10}")
+    print(f"\n{'Shape':<30} {'N':>6} {'K':>6} {'Config':>17} | {'E4M3 us':>9} {'E5M2 us':>9} {'E4M3 GB/s':>10} {'E5M2 GB/s':>10}")
     print("-" * 80)
 
     for name, N, K in shapes:
@@ -510,27 +660,48 @@ def benchmark_e5m2():
         ni = 4000 if total_bytes < 512 * 1024 else (1000 if total_bytes < 2 * 1024 * 1024 else 300)
 
         results = {}
+        heuristic_vl, heuristic_ks = select_vl_ks(N, K)
         for dtype_name, dtype in [("E4M3", torch.float8_e4m3fn), ("E5M2", torch.float8_e5m2)]:
             weights = []
             for i in range(nc):
                 w = (torch.randn(N, K, dtype=torch.float16, device=device) * 0.1).to(dtype)
                 weights.append(w)
 
-            for i in range(10):
-                esimd_gemv_fp8_pern(input_t, weights[i % nc], scale, output, N, K)
-            torch.xpu.synchronize()
+            best_us = None
+            best_cfg = None
+            rule_us = None
+            for vl, ks in _valid_vl_ks(K):
+                candidate_us, _ = _benchmark_one(
+                    lambda index, vl=vl, ks=ks: esimd_gemv_fp8_pern(
+                        input_t,
+                        weights[index % nc],
+                        scale,
+                        output,
+                        N,
+                        K,
+                        vl,
+                        ks,
+                    ),
+                    lambda: output,
+                    ni,
+                )
+                if (vl, ks) == (heuristic_vl, heuristic_ks):
+                    rule_us = candidate_us
+                if best_us is None or candidate_us < best_us:
+                    best_us = candidate_us
+                    best_cfg = (vl, ks)
 
-            t0 = time.perf_counter()
-            for i in range(ni):
-                esimd_gemv_fp8_pern(input_t, weights[i % nc], scale, output, N, K)
-            torch.xpu.synchronize()
-            us = (time.perf_counter() - t0) / ni * 1e6
+            assert best_us is not None and best_cfg is not None and rule_us is not None
+            us = best_us
             bw = (total_bytes / 1e9) / (us / 1e6)
-            results[dtype_name] = (us, bw)
+            results[dtype_name] = (us, bw, best_cfg, rule_us)
 
-        e4_us, e4_bw = results["E4M3"]
-        e5_us, e5_bw = results["E5M2"]
-        print(f"{name:<30} {N:>6} {K:>6} | {e4_us:>8.2f} {e5_us:>8.2f} {e4_bw:>9.1f} {e5_bw:>9.1f}")
+        e4_us, e4_bw, e4_cfg, e4_rule_us = results["E4M3"]
+        e5_us, e5_bw, e5_cfg, e5_rule_us = results["E5M2"]
+        print(
+            f"{name:<30} {N:>6} {K:>6} rule={heuristic_vl}:{heuristic_ks}(E4/E5={e4_rule_us:>7.2f}/{e5_rule_us:>7.2f}us) best(E4/E5)={e4_cfg[0]}:{e4_cfg[1]}({e4_us:>7.2f}us)/{e5_cfg[0]}:{e5_cfg[1]}({e5_us:>7.2f}us) | "
+            f"{e4_us:>8.2f} {e5_us:>8.2f} {e4_bw:>9.1f} {e5_bw:>9.1f}"
+        )
 
 
 if __name__ == "__main__":

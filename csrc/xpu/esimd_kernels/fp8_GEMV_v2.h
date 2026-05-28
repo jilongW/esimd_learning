@@ -74,16 +74,17 @@ struct GEMV_fp8_pern_kernel {
             acc += input_f * wf;
         }
 
-        float my_sum = reduce<float>(acc, std::plus<>()) * static_cast<float>(scale[n]);
+        float my_sum = reduce<float>(acc, std::plus<>());
 
         if constexpr (K_SPLIT == 1) {
-            output[n] = OutputT(my_sum);
+            output[n] = OutputT(my_sum * static_cast<float>(scale[n]));
         } else {
             slm_block_store<float, 1>(lid * sizeof(float), simd<float, 1>(my_sum));
             barrier();
             if (lid == 0) {
                 simd<float, K_SPLIT> parts = slm_block_load<float, K_SPLIT>(0);
-                output[n] = OutputT(reduce<float>(parts, std::plus<>()));
+                float final_sum = reduce<float>(parts, std::plus<>()) * static_cast<float>(scale[n]);
+                output[n] = OutputT(final_sum);
             }
         }
     }
@@ -132,6 +133,8 @@ inline void GEMV_fp8_pern_host_impl(
     uint8_t* output_data,
     uint32_t N,
     uint32_t K,
+    int vl,
+    int ks,
     int fp8_mode,
     sycl::queue& q) {
 
@@ -139,9 +142,6 @@ inline void GEMV_fp8_pern_host_impl(
     auto* p_w   = reinterpret_cast<const uint8_t*>(weight_data);
     auto* p_sc  = reinterpret_cast<const fp16*>(scale_data);
     auto* p_out = reinterpret_cast<OutputT*>(output_data);
-
-    int vl, ks;
-    select_vl_ks(N, K, vl, ks);
 
     int global = N * ks;
     int local  = ks;
@@ -163,7 +163,7 @@ inline void GEMV_fp8_pern_host_impl(
     else if (vl == 128 && ks == 4) { LAUNCH(128, 4) }
     else if (vl == 128 && ks == 8) { LAUNCH(128, 8) }
     else if (vl == 128 && ks == 10) { LAUNCH(128, 10) }
-    else { LAUNCH(128, 1) }
+    else { throw std::runtime_error("GEMV_fp8_pern_host_impl: unsupported vl/ks"); }
 
     #undef LAUNCH
 }
@@ -175,18 +175,20 @@ inline void GEMV_fp8_pern_host(
     uint8_t* output_data,
     uint32_t N,
     uint32_t K,
+    int vl,
+    int ks,
     bool input_is_bf16,
     bool output_is_bf16,
     int fp8_mode,
     sycl::queue& q) {
     if (input_is_bf16 && output_is_bf16) {
-        GEMV_fp8_pern_host_impl<bf16, bf16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+        GEMV_fp8_pern_host_impl<bf16, bf16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
     } else if (input_is_bf16) {
-        GEMV_fp8_pern_host_impl<bf16, fp16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+        GEMV_fp8_pern_host_impl<bf16, fp16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
     } else if (output_is_bf16) {
-        GEMV_fp8_pern_host_impl<fp16, bf16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+        GEMV_fp8_pern_host_impl<fp16, bf16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
     } else {
-        GEMV_fp8_pern_host_impl<fp16, fp16>(input_data, weight_data, scale_data, output_data, N, K, fp8_mode, q);
+        GEMV_fp8_pern_host_impl<fp16, fp16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
     }
 }
 
@@ -244,16 +246,17 @@ struct GEMV_fp8_pern_fused_kernel {
             acc += input_f * wf;
         }
 
-        float my_sum = reduce<float>(acc, std::plus<>()) * static_cast<float>(s_ptr[n]);
+        float my_sum = reduce<float>(acc, std::plus<>());
 
         if constexpr (K_SPLIT == 1) {
-            o_ptr[n] = fp16(my_sum);
+            o_ptr[n] = fp16(my_sum * static_cast<float>(s_ptr[n]));
         } else {
             slm_block_store<float, 1>(lid * sizeof(float), simd<float, 1>(my_sum));
             barrier();
             if (lid == 0) {
                 simd<float, K_SPLIT> parts = slm_block_load<float, K_SPLIT>(0);
-                o_ptr[n] = fp16(reduce<float>(parts, std::plus<>()));
+                float final_sum = reduce<float>(parts, std::plus<>()) * static_cast<float>(s_ptr[n]);
+                o_ptr[n] = fp16(final_sum);
             }
         }
     }

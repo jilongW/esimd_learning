@@ -11,7 +11,7 @@
 at::Tensor esimd_gemv_fp8_pern(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
     at::Tensor output,
-    int64_t N, int64_t K);
+    int64_t N, int64_t K, int64_t vl, int64_t ks);
 
 // FP8 GEMV with per-tensor scale: scale is fp32 scalar, N/K inferred from weight.
 at::Tensor esimd_gemv_fp8_pert(
@@ -24,7 +24,7 @@ at::Tensor esimd_fused_add_rms_norm_batched(
 
 at::Tensor esimd_rms_norm(
     at::Tensor hidden_states, at::Tensor weight,
-    double eps, at::Tensor output);
+    double eps, at::Tensor output, int64_t vl, int64_t ks);
 
 // FP8 GEMM per-tensor scale: input/output [M, K]/[M, N] fp16 or bf16 (matching dtype),
 // weight [N, K] fp8.

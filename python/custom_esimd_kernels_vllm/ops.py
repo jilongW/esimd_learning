@@ -8,14 +8,15 @@ def esimd_gemv_fp8_pern(
     input: torch.Tensor, weight: torch.Tensor, weight_scale: torch.Tensor,
     output: torch.Tensor,
     N: int, K: int,
+    vl: int, ks: int,
 ) -> torch.Tensor:
     """FP8 weight GEMV with per-N scale, FP32 accumulation, deferred scale.
 
     input/output: [1, K]/[1, N] fp16 or bf16 with matching dtype,
     weight: [N, K] fp8_e4m3, scale: [N] fp16.
-    K must be 256-aligned. N must be 8-aligned.
+    K must be divisible by both ks and vl, and (K // ks) must be divisible by vl.
     """
-    return _ops.esimd_gemv_fp8_pern(input, weight, weight_scale, output, N, K)
+    return _ops.esimd_gemv_fp8_pern(input, weight, weight_scale, output, N, K, vl, ks)
 
 # ---- Per-tensor scale variants (N/K auto-detected from weight shape) ----
 
@@ -51,15 +52,18 @@ def esimd_rms_norm(
     weight: torch.Tensor,
     eps: float,
     output: torch.Tensor,
+    vl: int,
+    ks: int,
 ) -> torch.Tensor:
     """Batched RMSNorm.
 
     hidden_states: [..., K] fp16 or bf16, where K is a multiple of 128.
     weight: [K] with the same dtype as hidden_states.
     output: preallocated output tensor with the same shape and dtype as hidden_states.
-    VL/KS are selected automatically inside the XPU kernel host path.
+    vl: vector length candidate, one of 128, 256, 512, 1024.
+    ks: per-row thread split, one of 1, 2, 5, 8, 10.
     """
-    return _ops.esimd_rms_norm(hidden_states, weight, eps, output)
+    return _ops.esimd_rms_norm(hidden_states, weight, eps, output, vl, ks)
 
 
 def esimd_gemm_fp8_pert(

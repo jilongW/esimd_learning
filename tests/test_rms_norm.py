@@ -5,6 +5,8 @@ from pathlib import Path
 import torch
 
 device = torch.device("xpu")
+VL_CANDIDATES = (128, 256, 512, 1024)
+KS_CANDIDATES = (1, 2, 5, 8, 10)
 HIDDEN_SHAPES = (
     (1, 2048),
     # # (1, 2048),
@@ -21,7 +23,7 @@ HIDDEN_SHAPES = (
 
 def select_vl_ks(rows: int, hidden_size: int) -> tuple[int, int]:
     if hidden_size <= 256:
-        vl, ks = 128, 1
+        vl, ks = 256, 1
     elif hidden_size <= 512:
         vl, ks = (256, 1) if rows >= 64 else (128, 1)
     elif hidden_size <= 2048:
@@ -37,7 +39,7 @@ def select_vl_ks(rows: int, hidden_size: int) -> tuple[int, int]:
         else:
             vl //= 2
 
-    while vl * ks >= hidden_size:
+    while vl * ks >= hidden_size and not (hidden_size == 256 and vl == 256 and ks == 1):
         if ks == 10:
             ks = 8
         elif ks == 8:
@@ -83,8 +85,9 @@ def test_rms_norm_correctness():
             hidden = torch.randn(*shape, dtype=dtype, device=device)
             weight = torch.randn(hidden_size, dtype=dtype, device=device) * 0.1
             out = torch.empty_like(hidden)
+            vl, ks = select_vl_ks(rows, hidden_size)
 
-            esimd_rms_norm(hidden, weight, eps, out)
+            esimd_rms_norm(hidden, weight, eps, out, vl, ks)
             torch.xpu.synchronize()
 
             ref = ref_rms_norm(hidden, weight, eps)
@@ -105,13 +108,13 @@ def _effective_rms_norm_bytes(hidden_states: torch.Tensor, weight: torch.Tensor)
 
 def _benchmark_one(run_fn, output_fn, iters: int) -> tuple[float, list[float]]:
     for _ in range(20):
-        run_fn()
+        run_fn(0)
     torch.xpu.synchronize()
 
     outputs = []
     t0 = time.perf_counter()
     for index in range(iters):
-        run_fn()
+        run_fn(index)
         output = output_fn()
         sample_index = [0] * output.dim()
         if output.dim() >= 2:
@@ -152,6 +155,31 @@ def _rms_norm_flops(hidden_states: torch.Tensor) -> int:
     return 4 * hidden_states.numel()
 
 
+def _make_input_pools(
+    shape: tuple[int, ...],
+    hidden_size: int,
+    dtype: torch.dtype,
+    pool_size: int = 64,
+) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+    hidden_pool = [torch.randn(*shape, dtype=dtype, device=device) for _ in range(pool_size)]
+    weight_pool = [
+        torch.randn(hidden_size, dtype=dtype, device=device) * 0.1 for _ in range(pool_size)
+    ]
+    return hidden_pool, weight_pool
+
+
+def _valid_vl_ks(hidden_size: int) -> list[tuple[int, int]]:
+    valid = []
+    for vl in VL_CANDIDATES:
+        if hidden_size % vl != 0:
+            continue
+        for ks in KS_CANDIDATES:
+            if vl * ks >= hidden_size and not (hidden_size == 256 and vl == 256 and ks == 1):
+                continue
+            valid.append((vl, ks))
+    return valid
+
+
 def benchmark_rms_norm():
     from custom_esimd_kernels_vllm import esimd_rms_norm
 
@@ -177,39 +205,65 @@ def benchmark_rms_norm():
         rows, hidden_size = _shape_rows_hidden(shape)
         iters = _benchmark_iters(shape)
         for dtype in (torch.float16, torch.bfloat16):
-            hidden = torch.randn(*shape, dtype=dtype, device=device)
-            weight = torch.randn(hidden_size, dtype=dtype, device=device) * 0.1
+            hidden_pool, weight_pool = _make_input_pools(shape, hidden_size, dtype)
+            hidden = hidden_pool[0]
+            weight = weight_pool[0]
             out_torch = torch.empty_like(hidden)
             heuristic_vl, heuristic_ks = select_vl_ks(rows, hidden_size)
             total_bytes = _effective_rms_norm_bytes(hidden, weight)
             total_flops = _rms_norm_flops(hidden)
             out_esimd = torch.empty_like(hidden)
 
+            best_cfg = None
+            best_us = None
+            best_outputs = None
             torch_us, torch_outputs = _benchmark_one(
-                lambda: torch.ops._C.rms_norm(out_torch, hidden, weight, eps),
+                lambda index: torch.ops._C.rms_norm(
+                    out_torch,
+                    hidden_pool[index % len(hidden_pool)],
+                    weight_pool[index % len(weight_pool)],
+                    eps,
+                ),
                 lambda: out_torch,
                 iters,
             )
             torch_bw = total_bytes / (torch_us * 1e-6) / 1e9
             torch_tflops = total_flops / (torch_us * 1e6)
 
-            esimd_us, esimd_outputs = _benchmark_one(
-                lambda: esimd_rms_norm(hidden, weight, eps, out_esimd),
-                lambda: out_esimd,
-                iters,
-            )
 
-           
+            for vl, ks in _valid_vl_ks(hidden_size):
+                candidate_us, candidate_outputs = _benchmark_one(
+                    lambda index, vl=vl, ks=ks: esimd_rms_norm(
+                        hidden_pool[index % len(hidden_pool)],
+                        weight_pool[index % len(weight_pool)],
+                        eps,
+                        out_esimd,
+                        vl,
+                        ks,
+                    ),
+                    lambda: out_esimd,
+                    iters,
+                )
+                if best_us is None or candidate_us < best_us:
+                    best_cfg = (vl, ks)
+                    best_us = candidate_us
+                    best_outputs = candidate_outputs
 
-            esimd_bw = total_bytes / (esimd_us * 1e-6) / 1e9
-            esimd_tflops = total_flops / (esimd_us * 1e6)
-            _assert_output_lists_close(esimd_outputs, torch_outputs)
+            
+            assert best_cfg is not None, f"No valid vl/ks for hidden_size={hidden_size}"
+
+            esimd_bw = total_bytes / (best_us * 1e-6) / 1e9
+            esimd_tflops = total_flops / (best_us * 1e6)
+            _assert_output_lists_close(best_outputs, torch_outputs)
 
             case_name = f"rms_norm {str(dtype).split('.')[-1]}"
-            cfg_str = f"shape={tuple(shape)} auto={heuristic_vl}:{heuristic_ks}"
-            speedup = torch_us / esimd_us if esimd_us > 0 else 0.0
+            cfg_str = (
+                f"shape={tuple(shape)} rule={heuristic_vl}:{heuristic_ks} "
+                f"best={best_cfg[0]}:{best_cfg[1]}"
+            )
+            speedup = torch_us / best_us if best_us > 0 else 0.0
             print(
-                f"{case_name:<30} {cfg_str:>20} | {esimd_us:>9.2f} {torch_us:>9.2f} "
+                f"{case_name:<30} {cfg_str:>20} | {best_us:>9.2f} {torch_us:>9.2f} "
                 f"{esimd_tflops:>9.4f} {torch_tflops:>9.4f} {esimd_bw:>11.2f} {torch_bw:>11.2f} {speedup:>7.2f}x"
             )
 
