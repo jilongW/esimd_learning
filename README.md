@@ -68,15 +68,6 @@ source /opt/intel/oneapi/setvars.sh
 TORCH_XPU_ARCH_LIST=ptl pip install -e . --no-build-isolation
 ```
 
-如果你只想本地重编译扩展，也可以直接运行：
-
-```bash
-cd /home/edgeai/esimd_learning
-source /home/edgeai/miniforge3/etc/profile.d/conda.sh
-conda activate down
-source /opt/intel/oneapi/setvars.sh
-TORCH_XPU_ARCH_LIST=ptl python setup.py build_ext --inplace
-```
 
 这里显式固定 `TORCH_XPU_ARCH_LIST=ptl`，避免多架构 device-link 把 `mtl-h` 等目标一起带进来后触发编译失败。
 

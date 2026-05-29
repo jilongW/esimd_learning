@@ -3,6 +3,32 @@
 import torch
 
 _ops = torch.ops.custom_esimd_kernels_vllm
+_GELU_TANH_AND_MUL_VL_CANDIDATES = (128, 256, 512)
+_GELU_TANH_AND_MUL_KS_CANDIDATES = (1, 2, 4, 5, 8, 10, 16, 20, 32, 40, 64)
+
+
+def _gelu_tanh_and_mul_step_down_ks(value: int) -> int:
+    if value == 64:
+        return 40
+    if value == 40:
+        return 32
+    if value == 32:
+        return 20
+    if value == 20:
+        return 16
+    if value == 16:
+        return 10
+    if value == 10:
+        return 8
+    if value == 8:
+        return 5
+    if value == 5:
+        return 4
+    if value == 4:
+        return 2
+    if value == 2:
+        return 1
+    return value
 
 def esimd_gemv_fp8(
     input: torch.Tensor, weight: torch.Tensor, weight_scale: torch.Tensor,
@@ -86,6 +112,8 @@ def esimd_norm_gemv_fp8_pert(
     gemv_scale: torch.Tensor,
     output: torch.Tensor,
     eps: float,
+    vl: int,
+    ks: int,
 ) -> torch.Tensor:
     """Fused RMSNorm + FP8 GEMV with per-tensor scale.
 
@@ -102,7 +130,93 @@ def esimd_norm_gemv_fp8_pert(
         gemv_scale,
         output,
         eps,
+        vl,
+        ks,
     )
+
+
+def _valid_gelu_tanh_and_mul_vl_ks(cols: int) -> list[tuple[int, int]]:
+    half_cols = cols // 2
+    valid = []
+    for vl in _GELU_TANH_AND_MUL_VL_CANDIDATES:
+        if half_cols % vl != 0:
+            continue
+        chunks_per_row = half_cols // vl
+        for ks in _GELU_TANH_AND_MUL_KS_CANDIDATES:
+            if 1 <= ks <= min(chunks_per_row, 64):
+                valid.append((vl, ks))
+    return valid
+
+
+def _normalize_gelu_tanh_and_mul_vl_ks(cols: int, vl: int, ks: int) -> tuple[int, int]:
+    half_cols = cols // 2
+    while vl > 128 and (half_cols % vl != 0 or vl > half_cols):
+        vl //= 2
+
+    if half_cols % vl != 0 or vl > half_cols:
+        raise ValueError(f"no valid vl for input width {cols}")
+
+    chunks_per_row = half_cols // vl
+    max_ks = min(chunks_per_row, 64)
+    while ks > max_ks:
+        next_ks = _gelu_tanh_and_mul_step_down_ks(ks)
+        if next_ks == ks:
+            break
+        ks = next_ks
+    return vl, ks
+
+
+def select_gelu_tanh_and_mul_vl_ks(
+    input: torch.Tensor,
+) -> tuple[int, int]:
+    """Select a default vl/ks pair for GeGLU activation.
+
+    The selector is intentionally simple and tuned for Gemma4-like shapes.
+    It favors higher ks for small-token batches and reduces ks as rows grow.
+    """
+    if input.dim() != 2:
+        raise ValueError("esimd_gelu_tanh_and_mul selector expects a 2D [M, 2D] tensor")
+    cols = int(input.shape[1])
+    valid = _valid_gelu_tanh_and_mul_vl_ks(cols)
+    if not valid:
+        raise ValueError(f"no valid vl/ks for input width {cols}")
+
+    rows = int(input.shape[0])
+    if rows <= 1:
+        vl, ks = 256, 20
+    elif rows <= 2:
+        vl, ks = (256, 40) if input.dtype == torch.bfloat16 else (128, 32)
+    elif rows <= 8:
+        vl, ks = 128, 40
+    elif rows <= 16:
+        vl, ks = (256, 20) if input.dtype == torch.bfloat16 else (128, 40)
+    elif rows <= 24:
+        vl, ks = (128, 40) if input.dtype == torch.bfloat16 else (256, 20)
+    else:
+        vl, ks = (256, 16) if input.dtype == torch.bfloat16 else (256, 20)
+
+    normalized = _normalize_gelu_tanh_and_mul_vl_ks(cols, vl, ks)
+    if normalized in valid:
+        return normalized
+    return valid[0]
+
+
+def esimd_gelu_tanh_and_mul(
+    input: torch.Tensor,
+    output: torch.Tensor,
+    vl: int | None = None,
+    ks: int | None = None,
+) -> torch.Tensor:
+    """GeGLU activation with GELU(tanh approximation) on the gate half.
+
+    input: [M, 2D] fp16 or bf16.
+    output: [M, D] with the same dtype/device.
+    """
+    if (vl is None) != (ks is None):
+        raise ValueError("vl and ks must both be provided or both be omitted")
+    if vl is None and ks is None:
+        vl, ks = 0, 0
+    return _ops.esimd_gelu_tanh_and_mul(input, output, vl, ks)
 
 
 def esimd_gemm_fp8_pert(

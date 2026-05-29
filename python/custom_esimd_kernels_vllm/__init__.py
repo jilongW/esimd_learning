@@ -10,6 +10,8 @@ from .ops import (
     esimd_fused_add_rms_norm_batched,
     esimd_rms_norm,
     esimd_norm_gemv_fp8_pert,
+    esimd_gelu_tanh_and_mul,
+    select_gelu_tanh_and_mul_vl_ks,
     esimd_gemm_fp8_pert,
     esimd_resadd_norm_gemv_fp8_pert,
 )
@@ -23,6 +25,8 @@ __all__ = [
     "esimd_fused_add_rms_norm_batched",
     "esimd_rms_norm",
     "esimd_norm_gemv_fp8_pert",
+    "esimd_gelu_tanh_and_mul",
+    "select_gelu_tanh_and_mul_vl_ks",
     "esimd_gemm_fp8_pert",
     "esimd_resadd_norm_gemv_fp8_pert",
 ]
