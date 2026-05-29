@@ -31,9 +31,6 @@ inline void normalize_gelu_tanh_and_mul_vl_ks(uint32_t half_cols, int& vl, int& 
 
     if (half_cols % vl != 0 || static_cast<uint32_t>(vl) > half_cols) {
         return;
-// Heuristic selector for Gemma4-like GeGLU shapes. Unlike GEMV, ks is not a
-// reduction split here; it is the per-row thread count used to stripe chunks of
-// the D dimension across a work-group.
     }
 
     int chunks_per_row = static_cast<int>(half_cols / vl);
@@ -47,6 +44,9 @@ inline void normalize_gelu_tanh_and_mul_vl_ks(uint32_t half_cols, int& vl, int& 
     }
 }
 
+// Heuristic selector for Gemma4-like GeGLU shapes. Unlike GEMV, ks is not a
+// reduction split here; it is the per-row thread count used to stripe chunks of
+// the D dimension across a work-group.
 inline void select_vl_ks_gelu_tanh_and_mul(uint32_t rows, uint32_t cols, bool is_bf16, int& vl, int& ks) {
     uint32_t half_cols = cols / 2;
 
@@ -100,8 +100,11 @@ struct GeluTanhAndMulKernel {
             simd<float, VL> gate_sq = gate * gate;
             simd<float, VL> gate_cube = gate_sq * gate;
             simd<float, VL> tanh_arg = (gate + gate_cube * kBeta) * kAlpha;
-            simd<float, VL> tanh_arg_sq = tanh_arg * tanh_arg;
-            simd<float, VL> tanh_val = tanh_arg * (27.0f + tanh_arg_sq) / (27.0f + 9.0f * tanh_arg_sq);
+            simd<float, VL> clamped_tanh_arg = tanh_arg;
+            clamped_tanh_arg.merge(10.0f, tanh_arg > 10.0f);
+            clamped_tanh_arg.merge(-10.0f, tanh_arg < -10.0f);
+            simd<float, VL> exp_2x = exp(clamped_tanh_arg * 2.0f);
+            simd<float, VL> tanh_val = (exp_2x - 1.0f) / (exp_2x + 1.0f);
             simd<float, VL> gelu = 0.5f * gate * (1.0f + tanh_val);
             simd<float, VL> out = gelu * up;
 
