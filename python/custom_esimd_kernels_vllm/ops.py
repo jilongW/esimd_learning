@@ -112,8 +112,8 @@ def esimd_norm_gemv_fp8_pert(
     gemv_scale: torch.Tensor,
     output: torch.Tensor,
     eps: float,
-    vl: int,
-    ks: int,
+    vl: int | None = None,
+    ks: int | None = None,
 ) -> torch.Tensor:
     """Fused RMSNorm + FP8 GEMV with per-tensor scale.
 
@@ -123,12 +123,48 @@ def esimd_norm_gemv_fp8_pert(
     gemv_scale: scalar fp32.
     output: [1, N] or [N] fp16.
     """
+    if (vl is None) != (ks is None):
+        raise ValueError("vl and ks must both be provided or both be omitted")
+    if vl is None and ks is None:
+        vl, ks = 0, 0
     return _ops.esimd_norm_gemv_fp8_pert(
         hidden_states,
         norm_weight,
         gemv_weight,
         gemv_scale,
         output,
+        eps,
+        vl,
+        ks,
+    )
+
+
+def esimd_norm_gemv2_fp8_pert(
+    hidden_states: torch.Tensor,
+    norm_weight: torch.Tensor,
+    gemv_weight0: torch.Tensor,
+    gemv_scale0: torch.Tensor,
+    gemv_weight1: torch.Tensor,
+    gemv_scale1: torch.Tensor,
+    eps: float,
+    vl: int,
+    ks: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Fused RMSNorm + 2-matrix FP8 GEMV with per-tensor scales.
+
+    hidden_states: [1, K] fp16.
+    norm_weight: [K] fp16.
+    gemv_weight0/gemv_weight1: [N0, K]/[N1, K] fp8.
+    gemv_scale0/gemv_scale1: scalar fp32.
+    returns: ([1, N0], [1, N1]) fp16.
+    """
+    return _ops.esimd_norm_gemv2_fp8_pert(
+        hidden_states,
+        norm_weight,
+        gemv_weight0,
+        gemv_scale0,
+        gemv_weight1,
+        gemv_scale1,
         eps,
         vl,
         ks,

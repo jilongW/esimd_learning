@@ -35,6 +35,9 @@ inline void select_vl_ks_norm_gemv(uint32_t N, uint32_t K, int& vl, int& ks) {
         if (N <= 256) {
             vl = 128;
             ks = 10;
+        } else if (N >= 10240) {
+            vl = 256;
+            ks = 1;
         } else {
             vl = 128;
             ks = 4;
@@ -253,4 +256,34 @@ inline void norm_gemv_fp8_pert_host(
     }
 
     #undef LAUNCH_NORM_GEMV
+}
+
+inline void norm_gemv_fp8_pert_host(
+    const fp16* x_ptr,
+    const fp16* norm_w_ptr,
+    const uint8_t* gemv_weight,
+    const float* gemv_scale,
+    fp16* output,
+    int N,
+    int K,
+    float eps,
+    int fp8_mode,
+    sycl::queue& q)
+{
+    int vl;
+    int ks;
+    select_vl_ks_norm_gemv(N, K, vl, ks);
+    norm_gemv_fp8_pert_host(
+        x_ptr,
+        norm_w_ptr,
+        gemv_weight,
+        gemv_scale,
+        output,
+        N,
+        K,
+        vl,
+        ks,
+        eps,
+        fp8_mode,
+        q);
 }

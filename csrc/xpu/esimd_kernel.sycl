@@ -12,6 +12,7 @@
 #include "esimd_kernels/norm_gemv_fused.h"
 #include "esimd_kernels/rms_norm.h"
 #include "esimd_kernels/resadd_norm_gemv_fused.h"
+#include "esimd_kernels/norm_gemv2_fused.h"
 
 #define EXTRACT_PTR(var, tensor) auto var = reinterpret_cast<uint8_t*>(tensor.data_ptr())
 
@@ -362,23 +363,44 @@ at::Tensor esimd_norm_gemv_fp8_pert(
         "esimd_norm_gemv_fp8_pert: output must have N elements"
     );
 
-    validate_gemv_fp8_config(K, vl, ks, "esimd_norm_gemv_fp8_pert");
+    TORCH_CHECK(
+        (vl == 0 && ks == 0) || (vl != 0 && ks != 0),
+        "esimd_norm_gemv_fp8_pert: vl and ks must both be zero for auto-select or both be explicit"
+    );
+
+    if (vl != 0 || ks != 0) {
+        validate_gemv_fp8_config(K, vl, ks, "esimd_norm_gemv_fp8_pert");
+    }
 
     auto& dpcpp_queue = get_device_queue(hidden_states);
 
-    norm_gemv_fp8_pert_host(
-        reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
-        reinterpret_cast<const fp16*>(norm_weight.data_ptr()),
-        reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
-        gemv_scale.data_ptr<float>(),
-        reinterpret_cast<fp16*>(output.data_ptr()),
-        N,
-        K,
-        (int)vl,
-        (int)ks,
-        (float)eps,
-        fp8_mode,
-        dpcpp_queue);
+    if (vl == 0 && ks == 0) {
+        norm_gemv_fp8_pert_host(
+            reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
+            reinterpret_cast<const fp16*>(norm_weight.data_ptr()),
+            reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+            gemv_scale.data_ptr<float>(),
+            reinterpret_cast<fp16*>(output.data_ptr()),
+            N,
+            K,
+            (float)eps,
+            fp8_mode,
+            dpcpp_queue);
+    } else {
+        norm_gemv_fp8_pert_host(
+            reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
+            reinterpret_cast<const fp16*>(norm_weight.data_ptr()),
+            reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+            gemv_scale.data_ptr<float>(),
+            reinterpret_cast<fp16*>(output.data_ptr()),
+            N,
+            K,
+            (int)vl,
+            (int)ks,
+            (float)eps,
+            fp8_mode,
+            dpcpp_queue);
+    }
 
     return output;
 }
@@ -463,6 +485,77 @@ at::Tensor esimd_gelu_tanh_and_mul(
             dpcpp_queue);
     }
     return output;
+}
+
+std::tuple<at::Tensor, at::Tensor> esimd_norm_gemv2_fp8_pert(
+    at::Tensor hidden_states,
+    at::Tensor norm_weight,
+    at::Tensor gemv_weight0,
+    at::Tensor gemv_scale0,
+    at::Tensor gemv_weight1,
+    at::Tensor gemv_scale1,
+    double eps,
+    int64_t vl,
+    int64_t ks)
+{
+    int N0 = (int)gemv_weight0.size(0);
+    int N1 = (int)gemv_weight1.size(0);
+    int K = (int)gemv_weight0.size(1);
+
+    TORCH_CHECK(
+        hidden_states.scalar_type() == at::ScalarType::Half,
+        "esimd_norm_gemv2_fp8_pert: hidden_states must be fp16"
+    );
+    TORCH_CHECK(
+        norm_weight.scalar_type() == at::ScalarType::Half,
+        "esimd_norm_gemv2_fp8_pert: norm_weight must be fp16"
+    );
+    TORCH_CHECK(
+        hidden_states.dim() == 2 && hidden_states.size(0) == 1,
+        "esimd_norm_gemv2_fp8_pert: hidden_states must have shape [1, K]"
+    );
+    TORCH_CHECK(
+        norm_weight.dim() == 1 && norm_weight.size(0) == K,
+        "esimd_norm_gemv2_fp8_pert: norm_weight must have shape [K]"
+    );
+    TORCH_CHECK(
+        gemv_weight1.dim() == 2 && gemv_weight1.size(1) == K,
+        "esimd_norm_gemv2_fp8_pert: gemv_weight1 must have shape [N1, K]"
+    );
+    TORCH_CHECK(
+        gemv_scale0.scalar_type() == at::ScalarType::Float && gemv_scale0.numel() == 1,
+        "esimd_norm_gemv2_fp8_pert: gemv_scale0 must be a float32 scalar"
+    );
+    TORCH_CHECK(
+        gemv_scale1.scalar_type() == at::ScalarType::Float && gemv_scale1.numel() == 1,
+        "esimd_norm_gemv2_fp8_pert: gemv_scale1 must be a float32 scalar"
+    );
+
+    validate_gemv_fp8_config(K, vl, ks, "esimd_norm_gemv2_fp8_pert");
+
+    auto output0 = at::empty({1, N0}, hidden_states.options());
+    auto output1 = at::empty({1, N1}, hidden_states.options());
+    auto& dpcpp_queue = get_device_queue(hidden_states);
+
+    norm_gemv2_fp8_pert_host(
+        reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
+        reinterpret_cast<const fp16*>(norm_weight.data_ptr()),
+        reinterpret_cast<const uint8_t*>(gemv_weight0.data_ptr()),
+        gemv_scale0.data_ptr<float>(),
+        reinterpret_cast<fp16*>(output0.data_ptr()),
+        reinterpret_cast<const uint8_t*>(gemv_weight1.data_ptr()),
+        gemv_scale1.data_ptr<float>(),
+        reinterpret_cast<fp16*>(output1.data_ptr()),
+        N0,
+        N1,
+        K,
+        (int)vl,
+        (int)ks,
+        (float)eps,
+        get_fp8_mode(gemv_weight0),
+        dpcpp_queue);
+
+    return std::make_tuple(output0, output1);
 }
 
 // ---- Fused ResidualAdd + RMSNorm + FP8 GEMV ----

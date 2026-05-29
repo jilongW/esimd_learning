@@ -42,6 +42,17 @@ at::Tensor esimd_gelu_tanh_and_mul(
     int64_t vl,
     int64_t ks);
 
+std::tuple<at::Tensor, at::Tensor> esimd_norm_gemv2_fp8_pert(
+    at::Tensor hidden_states,
+    at::Tensor norm_weight,
+    at::Tensor gemv_weight0,
+    at::Tensor gemv_scale0,
+    at::Tensor gemv_weight1,
+    at::Tensor gemv_scale1,
+    double eps,
+    int64_t vl,
+    int64_t ks);
+
 // FP8 GEMM per-tensor scale: input/output [M, K]/[M, N] fp16 or bf16 (matching dtype),
 // weight [N, K] fp8.
 // Auto-dispatches: M<=3 → batched GEMV, M>=2 E4M3 → DPAS V9, else → WS
