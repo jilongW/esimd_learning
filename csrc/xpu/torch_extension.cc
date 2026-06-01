@@ -28,9 +28,9 @@ TORCH_LIBRARY(custom_esimd_kernels_vllm, m) {
         "Tensor gemv_weight, Tensor gemv_scale, Tensor output, float eps, int vl, int ks) -> Tensor");
   m.impl("esimd_norm_gemv_fp8_pert", torch::kXPU, &esimd_norm_gemv_fp8_pert);
 
-  m.def("esimd_norm_gemv2_fp8_pert(Tensor hidden_states, Tensor norm_weight, "
-        "Tensor gemv_weight0, Tensor gemv_scale0, Tensor gemv_weight1, Tensor gemv_scale1, float eps, int vl, int ks) -> (Tensor, Tensor)");
-  m.impl("esimd_norm_gemv2_fp8_pert", torch::kXPU, &esimd_norm_gemv2_fp8_pert);
+  m.def("esimd_norm_gemv2_geglu_fp8_pert(Tensor hidden_states, Tensor norm_weight, "
+        "Tensor gemv_weight0, Tensor gemv_scale0, Tensor gemv_weight1, Tensor gemv_scale1, Tensor output, float eps, int vl, int ks) -> Tensor");
+  m.impl("esimd_norm_gemv2_geglu_fp8_pert", torch::kXPU, &esimd_norm_gemv2_geglu_fp8_pert);
 
       m.def("esimd_gelu_tanh_and_mul(Tensor input, Tensor output, int vl, int ks) -> Tensor");
   m.impl("esimd_gelu_tanh_and_mul", torch::kXPU, &esimd_gelu_tanh_and_mul);

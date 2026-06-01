@@ -1,20 +1,25 @@
-/* norm_gemv2_fused.h — Fused RMSNorm + 2-matrix FP8 GEMV.
+/* norm_gemv2_geglu_fused.h — Fused RMSNorm + 2-matrix FP8 GEMV + GeGLU.
  *
  * Two-pass over the normalized input: accumulate sum_sq for RMS, then re-read
  * hidden_states, normalize, and run two independent FP8 GEMVs.
+ *
+ * Final output applies GeGLU in-kernel:
+ *   out = GELU_tanh(gemv0(normed_hidden)) * gemv1(normed_hidden)
+ *
+ * This path returns a single output tensor [1, N0] and requires N0 == N1.
  *
  * Key insight: we need sum_sq (from pass 1) before normalizing (pass 2), but
  * storing all chunks needs too many registers for large K.
  * Solution: TWO loops over global memory. Pass 1 reads hidden_states for
  * sum_sq only. Pass 2 re-reads hidden_states (from L3), normalizes, does GEMV.
  *
- * Grid: N0 WGs, each WG produces one row from w0 and one row from w1.
+ * Grid: N0 WGs, each WG produces one fused GeGLU output element.
  */
 
 #pragma once
 #include "utils.h"
 
-inline void normalize_norm_gemv2_vl_ks(uint32_t K, int& vl, int& ks) {
+inline void normalize_norm_gemv2_geglu_vl_ks(uint32_t K, int& vl, int& ks) {
     auto step_down_ks = [](int value) {
         if (value == 10) return 8;
         if (value == 8) return 4;
@@ -38,7 +43,7 @@ inline void normalize_norm_gemv2_vl_ks(uint32_t K, int& vl, int& ks) {
     }
 }
 
-inline void select_vl_ks_norm_gemv2(uint32_t total_N, uint32_t K, int& vl, int& ks) {
+inline void select_vl_ks_norm_gemv2_geglu(uint32_t total_N, uint32_t K, int& vl, int& ks) {
     vl = 512;
     ks = 1;
 
@@ -48,15 +53,16 @@ inline void select_vl_ks_norm_gemv2(uint32_t total_N, uint32_t K, int& vl, int& 
     } else if (K == 256) {
         vl = 256;
         ks = 1;
+    } else if (K == 2560 && total_N < 8192) {
+        // Measured crossover: small-N decode favors the narrow 256:1 path.
+        vl = 256;
+        ks = 1;
     } else if (K >= 10240) {
         vl = 512;
         ks = 2;
     } else if (K >= 4096) {
         vl = 512;
         ks = 2;
-    } else if (K >= 2560 && total_N >= 10240) {
-        vl = 512;
-        ks = 1;
     } else if (K >= 2560) {
         vl = 128;
         ks = 10;
@@ -65,7 +71,7 @@ inline void select_vl_ks_norm_gemv2(uint32_t total_N, uint32_t K, int& vl, int& 
         ks = 8;
     }
 
-    normalize_norm_gemv2_vl_ks(K, vl, ks);
+    normalize_norm_gemv2_geglu_vl_ks(K, vl, ks);
 }
 
 template<int VL>
@@ -111,16 +117,28 @@ SYCL_ESIMD_FUNCTION inline simd<float, VL> fp8_dequant_rng2_mode(
     return simd<float, VL>(wh);
 }
 
+SYCL_ESIMD_FUNCTION inline float gelu_tanh_scalar(float x) {
+    constexpr float kAlpha = 0.7978845608028654f;
+    constexpr float kBeta = 0.044715f;
+    float x2 = x * x;
+    float x3 = x2 * x;
+    float tanh_arg = (x + kBeta * x3) * kAlpha;
+    if (tanh_arg > 10.0f) tanh_arg = 10.0f;
+    if (tanh_arg < -10.0f) tanh_arg = -10.0f;
+    float exp_2x = sycl::exp(tanh_arg * 2.0f);
+    float tanh_val = (exp_2x - 1.0f) / (exp_2x + 1.0f);
+    return 0.5f * x * (1.0f + tanh_val);
+}
+
 template<int FP8_MODE>
 struct NormGEMV2_fp8_pert_kernel_256_1 {
     const fp16*    hidden_ptr;   // [1, K] — read-only
     const fp16*    norm_w_ptr;   // [K]
     const uint8_t* w0_ptr;       // [N0, K] FP8
     const float*   s0_ptr;       // [1]
-    fp16*          o0_ptr;       // [1, N0]
+    fp16*          out_ptr;      // [1, N0]
     const uint8_t* w1_ptr;       // [N1, K] FP8
     const float*   s1_ptr;       // [1]
-    fp16*          o1_ptr;       // [1, N1]
     int N0, N1, K;
     float eps;
 
@@ -162,8 +180,11 @@ struct NormGEMV2_fp8_pert_kernel_256_1 {
             acc1 += reduce<float>(normed * w1_f, std::plus<>());
         }
 
-        o0_ptr[gid] = fp16(acc0 * *s0_ptr);
-        o1_ptr[gid] = fp16(acc1 * *s1_ptr);
+        float first = acc0 * *s0_ptr;
+        float second = acc1 * *s1_ptr;
+        float gated = gelu_tanh_scalar(first) * second;
+
+        out_ptr[gid] = fp16(gated);
     }
 };
 
@@ -173,10 +194,9 @@ struct NormGEMV2_fp8_pert_kernel {
     const fp16*    norm_w_ptr;   // [K]
     const uint8_t* w0_ptr;       // [N0, K] FP8
     const float*   s0_ptr;       // [1]
-    fp16*          o0_ptr;       // [1, N0]
+    fp16*          out_ptr;      // [1, N0]
     const uint8_t* w1_ptr;       // [N1, K] FP8
     const float*   s1_ptr;       // [1]
-    fp16*          o1_ptr;       // [1, N1]
     int N0, N1, K;
     float eps;
     int fp8_mode;
@@ -257,8 +277,8 @@ struct NormGEMV2_fp8_pert_kernel {
         float my_sum1 = reduce<float>(acc1, std::plus<>()) * *s1_ptr;
 
         if constexpr (K_SPLIT == 1) {
-            o0_ptr[gid] = fp16(my_sum0);
-            o1_ptr[gid] = fp16(my_sum1);
+            float gated = gelu_tanh_scalar(my_sum0) * my_sum1;
+            out_ptr[gid] = fp16(gated);
         } else {
             constexpr int kInvRmsSlmOffset = K_SPLIT * sizeof(float);
             constexpr int kOutput0SlmOffset = kInvRmsSlmOffset + sizeof(float);
@@ -270,21 +290,23 @@ struct NormGEMV2_fp8_pert_kernel {
             if (lid == 0) {
                 simd<float, K_SPLIT> parts0 = slm_block_load<float, K_SPLIT>(kOutput0SlmOffset);
                 simd<float, K_SPLIT> parts1 = slm_block_load<float, K_SPLIT>(kOutput1SlmOffset);
-                o0_ptr[gid] = fp16(reduce<float>(parts0, std::plus<>()));
-                o1_ptr[gid] = fp16(reduce<float>(parts1, std::plus<>()));
+                float sum0 = reduce<float>(parts0, std::plus<>());
+                float sum1 = reduce<float>(parts1, std::plus<>());
+                float gated = gelu_tanh_scalar(sum0) * sum1;
+                out_ptr[gid] = fp16(gated);
             }
         }
     }
 };
 
-inline void norm_gemv2_fp8_pert_host(
+inline void norm_gemv2_geglu_fp8_pert_host(
     const fp16* hidden_ptr, const fp16* norm_w_ptr,
-    const uint8_t* w0, const float* s0, fp16* o0,
-    const uint8_t* w1, const float* s1, fp16* o1,
+    const uint8_t* w0, const float* s0, fp16* out,
+    const uint8_t* w1, const float* s1,
     int N0, int N1, int K, int vl, int ks, float eps, int fp8_mode,
     sycl::queue& q)
 {
-    TORCH_CHECK(N0 == N1, "norm_gemv2_fp8_pert_host: only equal-row weights are supported");
+    TORCH_CHECK(N0 == N1, "norm_gemv2_geglu_fp8_pert_host: only equal-row weights are supported");
 
     int global = N0 * ks;
     int local = ks;
@@ -299,10 +321,9 @@ inline void norm_gemv2_fp8_pert_host(
                         norm_w_ptr,
                         w0,
                         s0,
-                        o0,
+                        out,
                         w1,
                         s1,
-                        o1,
                         N0,
                         N1,
                         K,
@@ -317,10 +338,9 @@ inline void norm_gemv2_fp8_pert_host(
                         norm_w_ptr,
                         w0,
                         s0,
-                        o0,
+                        out,
                         w1,
                         s1,
-                        o1,
                         N0,
                         N1,
                         K,
@@ -336,7 +356,7 @@ inline void norm_gemv2_fp8_pert_host(
                 sycl::nd_range<1>(global, local), \
                 NormGEMV2_fp8_pert_kernel<V, S>{ \
                     hidden_ptr, norm_w_ptr, \
-                    w0, s0, o0, w1, s1, o1, \
+                    w0, s0, out, w1, s1, \
                     N0, N1, K, eps, fp8_mode}); \
         });
 
@@ -356,25 +376,24 @@ inline void norm_gemv2_fp8_pert_host(
     #undef LAUNCH_FUSED
 }
 
-inline void norm_gemv2_fp8_pert_host(
+inline void norm_gemv2_geglu_fp8_pert_host(
     const fp16* hidden_ptr, const fp16* norm_w_ptr,
-    const uint8_t* w0, const float* s0, fp16* o0,
-    const uint8_t* w1, const float* s1, fp16* o1,
+    const uint8_t* w0, const float* s0, fp16* out,
+    const uint8_t* w1, const float* s1,
     int N0, int N1, int K, float eps, int fp8_mode,
     sycl::queue& q)
 {
     int total_N = N0 + N1;
     int vl, ks;
-    select_vl_ks_norm_gemv2(total_N, K, vl, ks);
-    norm_gemv2_fp8_pert_host(
+    select_vl_ks_norm_gemv2_geglu(total_N, K, vl, ks);
+    norm_gemv2_geglu_fp8_pert_host(
         hidden_ptr,
         norm_w_ptr,
         w0,
         s0,
-        o0,
+        out,
         w1,
         s1,
-        o1,
         N0,
         N1,
         K,

@@ -42,13 +42,14 @@ at::Tensor esimd_gelu_tanh_and_mul(
     int64_t vl,
     int64_t ks);
 
-std::tuple<at::Tensor, at::Tensor> esimd_norm_gemv2_fp8_pert(
+at::Tensor esimd_norm_gemv2_geglu_fp8_pert(
     at::Tensor hidden_states,
     at::Tensor norm_weight,
     at::Tensor gemv_weight0,
     at::Tensor gemv_scale0,
     at::Tensor gemv_weight1,
     at::Tensor gemv_scale1,
+    at::Tensor output,
     double eps,
     int64_t vl,
     int64_t ks);

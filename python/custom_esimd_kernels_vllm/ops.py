@@ -139,32 +139,41 @@ def esimd_norm_gemv_fp8_pert(
     )
 
 
-def esimd_norm_gemv2_fp8_pert(
+def esimd_norm_gemv2_geglu_fp8_pert(
     hidden_states: torch.Tensor,
     norm_weight: torch.Tensor,
     gemv_weight0: torch.Tensor,
     gemv_scale0: torch.Tensor,
     gemv_weight1: torch.Tensor,
     gemv_scale1: torch.Tensor,
+    output: torch.Tensor,
     eps: float,
-    vl: int,
-    ks: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Fused RMSNorm + 2-matrix FP8 GEMV with per-tensor scales.
+    vl: int | None = None,
+    ks: int | None = None,
+) -> torch.Tensor:
+    """Fused RMSNorm + 2-matrix FP8 GEMV + GeGLU with per-tensor scales.
 
     hidden_states: [1, K] fp16.
     norm_weight: [K] fp16.
     gemv_weight0/gemv_weight1: [N0, K]/[N1, K] fp8.
     gemv_scale0/gemv_scale1: scalar fp32.
-    returns: ([1, N0], [1, N1]) fp16.
+    output: [1, N0] fp16.
+    vl/ks: optional. If omitted, kernel side auto-select is used.
+    returns: output, where output = GELU_tanh(gemv0) * gemv1.
     """
-    return _ops.esimd_norm_gemv2_fp8_pert(
+    if (vl is None) != (ks is None):
+        raise ValueError("vl and ks must both be provided or both be omitted")
+    if vl is None and ks is None:
+        vl, ks = 0, 0
+
+    return _ops.esimd_norm_gemv2_geglu_fp8_pert(
         hidden_states,
         norm_weight,
         gemv_weight0,
         gemv_scale0,
         gemv_weight1,
         gemv_scale1,
+        output,
         eps,
         vl,
         ks,

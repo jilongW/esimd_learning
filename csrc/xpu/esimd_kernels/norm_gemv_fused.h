@@ -101,6 +101,51 @@ SYCL_ESIMD_FUNCTION inline simd<float, VL> fp8_dequant_norm(
  * ================================================================ */
 constexpr int NORM_GEMV_SLM_CACHE_K = 2560;
 
+struct NormGEMV_fp8_pert_kernel_256_1 {
+    const fp16*    x_ptr;        // [1, K]
+    const fp16*    norm_w_ptr;   // [K]
+    const uint8_t* gemv_weight;  // [N, K] FP8
+    const float*   gemv_scale;   // [1]
+    fp16*          output;       // [N]
+    int N;
+    int K;
+    float eps;
+    int fp8_mode;
+
+    void operator()(sycl::nd_item<1> item) const SYCL_ESIMD_KERNEL {
+        constexpr int VL = 256;
+        int n = item.get_group(0);
+        if (n >= N) return;
+
+        int n_chunks = K / VL;
+        float sum_sq = 0.0f;
+        for (int c = 0; c < n_chunks; c++) {
+            int offset = c * VL;
+            simd<float, VL> x = block_load<fp16, VL>(x_ptr + offset);
+            sum_sq += reduce<float>(x * x, std::plus<>());
+        }
+
+        float inv_rms = sycl::ext::intel::esimd::rsqrt(
+            simd<float, 8>(sum_sq / (float)K + eps))[0];
+
+        float acc = 0.0f;
+        for (int c = 0; c < n_chunks; c++) {
+            int offset = c * VL;
+
+            simd<float, VL> x = block_load<fp16, VL>(x_ptr + offset);
+            simd<float, VL> nw = block_load<fp16, VL>(norm_w_ptr + offset);
+            simd<float, VL> normed = x * inv_rms * nw;
+
+            simd<uint8_t, VL> w_raw = block_load<uint8_t, VL>(
+                gemv_weight + (size_t)n * K + offset);
+            simd<float, VL> w_f = fp8_dequant_norm<VL>(w_raw, fp8_mode);
+            acc += reduce<float>(normed * w_f, std::plus<>());
+        }
+
+        output[n] = fp16(acc * gemv_scale[0]);
+    }
+};
+
 template<int VL, int K_SPLIT, bool CACHE_X_NORM>
 struct NormGEMV_fp8_pert_kernel {
     const fp16*    x_ptr;        // [1, K]
@@ -219,6 +264,24 @@ inline void norm_gemv_fp8_pert_host(
 {
     int global = N * ks;
     int local = ks;
+
+    if (vl == 256 && ks == 1) {
+        q.submit([&](sycl::handler& cgh) {
+            cgh.parallel_for(
+                sycl::nd_range<1>(global, local),
+                NormGEMV_fp8_pert_kernel_256_1{
+                    x_ptr,
+                    norm_w_ptr,
+                    gemv_weight,
+                    gemv_scale,
+                    output,
+                    N,
+                    K,
+                    eps,
+                    fp8_mode});
+        });
+        return;
+    }
 
     bool use_slm_cache = (ks > 1) && (K <= NORM_GEMV_SLM_CACHE_K);
 

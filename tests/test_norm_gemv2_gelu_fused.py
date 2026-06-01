@@ -18,6 +18,8 @@ TARGET_BW = 112.0
 SHAPES = [
     (10240, 10240, 2560),
 ]
+NORM_GEMV2_VL_CANDIDATES = (128, 256, 512)
+NORM_GEMV2_KS_CANDIDATES = (1, 2, 4, 8, 10)
 
 
 def _normalize_vl_ks(k_size: int, vl: int, ks: int) -> tuple[int, int]:
@@ -95,6 +97,65 @@ def _select_rms_norm_vl_ks(rows: int, hidden_size: int) -> tuple[int, int]:
     return vl, ks
 
 
+def _valid_norm_gemv2_configs(k_size: int) -> list[tuple[int, int]]:
+    valid: list[tuple[int, int]] = []
+    supported_by_kernel = {
+        (512, 1), (512, 2),
+        (256, 1), (256, 2), (256, 4), (256, 8),
+        (128, 1), (128, 2), (128, 4), (128, 8), (128, 10),
+    }
+    for vl in NORM_GEMV2_VL_CANDIDATES:
+        if k_size % vl != 0:
+            continue
+        for ks in NORM_GEMV2_KS_CANDIDATES:
+            if (vl, ks) not in supported_by_kernel:
+                continue
+            if k_size % ks != 0:
+                continue
+            if (k_size // ks) % vl != 0:
+                continue
+            valid.append((vl, ks))
+    return valid
+
+
+def _search_best_norm_gemv2_vl_ks(
+    hidden: torch.Tensor,
+    norm_weight: torch.Tensor,
+    weight0: torch.Tensor,
+    scale0: torch.Tensor,
+    weight1: torch.Tensor,
+    scale1: torch.Tensor,
+    eps: float,
+) -> tuple[int, int, float]:
+    k_size = int(hidden.shape[1])
+    candidates = _valid_norm_gemv2_configs(k_size)
+    best_vl, best_ks = candidates[0]
+    best_latency = float("inf")
+    output = torch.empty(1, weight0.shape[0], dtype=torch.float16, device=weight0.device)
+
+    for vl, ks in candidates:
+        def run_once() -> None:
+            esimd_norm_gemv2_geglu_fp8_pert(
+                hidden,
+                norm_weight,
+                weight0,
+                scale0,
+                weight1,
+                scale1,
+                output,
+                eps,
+                vl,
+                ks,
+            )
+
+        latency = _benchmark_xpu_callable(run_once, warmup_iters=4, benchmark_iters=40)
+        if latency < best_latency:
+            best_latency = latency
+            best_vl, best_ks = vl, ks
+
+    return best_vl, best_ks, best_latency
+
+
 def _benchmark_xpu_callable(fn, warmup_iters: int = WARMUP_ITERS, benchmark_iters: int = BENCHMARK_ITERS) -> float:
     for _ in range(warmup_iters):
         fn()
@@ -149,6 +210,15 @@ def test_norm_gemv2_matches_three_paths() -> None:
 
         total_n = n0 + n1
         vl, ks = _select_norm_gemv_vl_ks(total_n, k_size)
+        best_vl, best_ks, _ = _search_best_norm_gemv2_vl_ks(
+            hidden,
+            norm_weight,
+            weight0_fp8,
+            scale0,
+            weight1_fp8,
+            scale1,
+            EPS,
+        )
         fused_output = torch.empty(1, n0, dtype=torch.float16, device=DEVICE)
         esimd_norm_gemv2_geglu_fp8_pert(
             hidden,
@@ -159,8 +229,8 @@ def test_norm_gemv2_matches_three_paths() -> None:
             scale1,
             fused_output,
             EPS,
-            vl,
-            ks,
+            best_vl,
+            best_ks,
         )
 
         combined_weight = torch.cat([weight0_fp8, weight1_fp8], dim=0)
@@ -234,7 +304,15 @@ def benchmark_norm_gemv2_three_paths() -> None:
             combined_weight_pool.append(torch.cat([weight0_fp8, weight1_fp8], dim=0))
 
         total_n = n0 + n1
-        fused_vl, fused_ks = _select_norm_gemv_vl_ks(total_n, k_size)
+        fused_vl, fused_ks, _ = _search_best_norm_gemv2_vl_ks(
+            hidden,
+            norm_weight,
+            weight0_pool[0],
+            scale0,
+            weight1_pool[0],
+            scale1,
+            EPS,
+        )
         combined_vl, combined_ks = _select_norm_gemv_vl_ks(total_n, k_size)
         rms_vl, rms_ks = _select_rms_norm_vl_ks(hidden.shape[0], k_size)
 
