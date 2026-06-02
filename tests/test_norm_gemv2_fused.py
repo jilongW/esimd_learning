@@ -3,6 +3,7 @@ import time
 import torch
 
 from custom_esimd_kernels_vllm import (
+    esimd_gemv_gelu_tanh_mul_fp8_pert,
     esimd_gemv_fp8,
     esimd_gelu_tanh_and_mul,
     esimd_norm_gemv2_geglu_fp8_pert,
@@ -122,7 +123,7 @@ def _norm_gemv2_combined_bytes(n0: int, n1: int, k_size: int) -> int:
     norm_weight_bytes = k_size * 2
     gemv_weight_bytes = (n0 + n1) * k_size
     scale_bytes = 8
-    output_bytes = (n0 + n1) * 2 + n0 * 2
+    output_bytes = n0 * 2
     return hidden_bytes + norm_weight_bytes + gemv_weight_bytes + scale_bytes + output_bytes
 
 
@@ -165,17 +166,15 @@ def test_norm_gemv2_matches_three_paths() -> None:
 
         combined_weight = torch.cat([weight0_fp8, weight1_fp8], dim=0)
         combined_scale = torch.tensor([scale0.item(), scale1.item()], dtype=torch.float32, device=DEVICE)
-        combined_logits = torch.empty(1, total_n, dtype=torch.float16, device=DEVICE)
         combined_output = torch.empty(1, n0, dtype=torch.float16, device=DEVICE)
-        esimd_norm_gemv_fp8_pert(
-            hidden,
-            norm_weight,
+        combined_normed = torch.empty_like(hidden)
+        esimd_rms_norm(hidden, norm_weight, EPS, combined_normed, 256, 1)
+        esimd_gemv_gelu_tanh_mul_fp8_pert(
+            combined_normed,
             combined_weight,
             combined_scale,
-            combined_logits,
-            EPS
+            combined_output,
         )
-        esimd_gelu_tanh_and_mul(combined_logits, combined_output)
 
         rms_vl, rms_ks = _select_rms_norm_vl_ks(hidden.shape[0], k_size)
         normed = torch.empty_like(hidden)
@@ -239,7 +238,6 @@ def benchmark_norm_gemv2_three_paths() -> None:
         rms_vl, rms_ks = _select_rms_norm_vl_ks(hidden.shape[0], k_size)
 
         fused_output = torch.empty(1, n0, dtype=torch.float16, device=DEVICE)
-        combined_logits = torch.empty(1, total_n, dtype=torch.float16, device=DEVICE)
         combined_output = torch.empty(1, n0, dtype=torch.float16, device=DEVICE)
         normed = torch.empty_like(hidden)
         split_out0 = torch.empty(1, n0, dtype=torch.float16, device=DEVICE)
@@ -266,15 +264,13 @@ def benchmark_norm_gemv2_three_paths() -> None:
 
         def run_combined() -> None:
             current_idx = run_state["index"] % num_copies
-            esimd_norm_gemv_fp8_pert(
-                hidden,
-                norm_weight,
+            esimd_rms_norm(hidden, norm_weight, EPS, normed, rms_vl, rms_ks)
+            esimd_gemv_gelu_tanh_mul_fp8_pert(
+                normed,
                 combined_weight_pool[current_idx],
                 combined_scale,
-                combined_logits,
-                EPS
+                combined_output,
             )
-            esimd_gelu_tanh_and_mul(combined_logits, combined_output)
             run_state["index"] += 1
 
         def run_split() -> None:

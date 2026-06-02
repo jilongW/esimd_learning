@@ -139,6 +139,34 @@ def esimd_norm_gemv_fp8_pert(
     )
 
 
+def esimd_gemv_gelu_tanh_mul_fp8_pert(
+    hidden_states: torch.Tensor,
+    gemv_weight: torch.Tensor,
+    gemv_scale: torch.Tensor,
+    output: torch.Tensor,
+    vl: int | None = None,
+    ks: int | None = None,
+) -> torch.Tensor:
+    """Fused FP8 GEMV + GeGLU (GELU(tanh)+MUL).
+
+    Expects `gemv_weight` shaped [2N, K] and returns `output` shaped [1, N].
+    `gemv_scale` can be [1] (shared scale) or [2] (per-half scales).
+    """
+    if (vl is None) != (ks is None):
+        raise ValueError("vl and ks must both be provided or both be omitted")
+    if vl is None and ks is None:
+        vl, ks = 0, 0
+
+    return _ops.esimd_gemv_gelu_tanh_mul_fp8_pert(
+        hidden_states,
+        gemv_weight,
+        gemv_scale,
+        output,
+        vl,
+        ks,
+    )
+
+
 def esimd_norm_gemv2_geglu_fp8_pert(
     hidden_states: torch.Tensor,
     norm_weight: torch.Tensor,

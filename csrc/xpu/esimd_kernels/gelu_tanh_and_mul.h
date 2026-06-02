@@ -95,7 +95,7 @@ struct GeluTanhAndMulKernel {
             simd<float, VL> gate = block_load<scalar_t, VL>(input_ptr + input_row_base + offset);
             simd<float, VL> up = block_load<scalar_t, VL>(input_ptr + input_row_base + half_cols + offset);
 
-            constexpr float kAlpha = 0.7978845608028654f;
+            constexpr float kAlpha = 0.79788456f;
             constexpr float kBeta = 0.044715f;
             simd<float, VL> gate_sq = gate * gate;
             simd<float, VL> gate_cube = gate_sq * gate;

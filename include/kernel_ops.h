@@ -36,6 +36,11 @@ at::Tensor esimd_norm_gemv_fp8_pert(
     at::Tensor gemv_weight, at::Tensor gemv_scale,
     at::Tensor output, double eps, int64_t vl, int64_t ks);
 
+at::Tensor esimd_gemv_gelu_tanh_mul_fp8_pert(
+    at::Tensor hidden_states,
+    at::Tensor gemv_weight, at::Tensor gemv_scale,
+    at::Tensor output, int64_t vl, int64_t ks);
+
 at::Tensor esimd_gelu_tanh_and_mul(
     at::Tensor input,
     at::Tensor output,

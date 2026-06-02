@@ -9,6 +9,7 @@
 #include "esimd_kernels/fp8_GEMV_v2.h"
 #include "esimd_kernels/fused_add_rms_norm_batched.h"
 #include "esimd_kernels/gelu_tanh_and_mul.h"
+#include "esimd_kernels/gemv_gelu_tanh_mul_fused.h"
 #include "esimd_kernels/norm_gemv_fused.h"
 #include "esimd_kernels/rms_norm.h"
 #include "esimd_kernels/resadd_norm_gemv_fused.h"
@@ -326,8 +327,14 @@ at::Tensor esimd_norm_gemv_fp8_pert(
     int64_t vl,
     int64_t ks)
 {
-    int N = (int)gemv_weight.size(0);
+    int total_N = (int)gemv_weight.size(0);
+    TORCH_CHECK(
+        total_N % 2 == 0,
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: gemv_weight rows must be even ([2N, K])"
+    );
+    int N = total_N / 2;
     int K = (int)gemv_weight.size(1);
+    int gemv_scale_count = (int)gemv_scale.numel();
     int fp8_mode = get_fp8_mode(gemv_weight);
 
     TORCH_CHECK(
@@ -398,6 +405,89 @@ at::Tensor esimd_norm_gemv_fp8_pert(
             (int)vl,
             (int)ks,
             (float)eps,
+            fp8_mode,
+            dpcpp_queue);
+    }
+
+    return output;
+}
+
+at::Tensor esimd_gemv_gelu_tanh_mul_fp8_pert(
+    at::Tensor hidden_states,
+    at::Tensor gemv_weight,
+    at::Tensor gemv_scale,
+    at::Tensor output,
+    int64_t vl,
+    int64_t ks)
+{
+    int total_N = (int)gemv_weight.size(0);
+    TORCH_CHECK(
+        total_N % 2 == 0,
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: gemv_weight rows must be even ([2N, K])"
+    );
+    int N = total_N / 2;
+    int K = (int)gemv_weight.size(1);
+    int gemv_scale_count = (int)gemv_scale.numel();
+    int fp8_mode = get_fp8_mode(gemv_weight);
+
+    TORCH_CHECK(
+        hidden_states.scalar_type() == at::ScalarType::Half,
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: hidden_states must be fp16"
+    );
+    TORCH_CHECK(
+        output.scalar_type() == at::ScalarType::Half,
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: output must be fp16"
+    );
+    TORCH_CHECK(
+        hidden_states.dim() == 2 && hidden_states.size(0) == 1,
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: hidden_states must have shape [1, K]"
+    );
+    TORCH_CHECK(
+        gemv_scale.scalar_type() == at::ScalarType::Float,
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: gemv_scale must be float32"
+    );
+    TORCH_CHECK(
+        gemv_scale.numel() == 1 || gemv_scale.numel() == 2,
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: gemv_scale must have 1 or 2 elements"
+    );
+    TORCH_CHECK(
+        output.numel() == N,
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: output must have N elements where gemv_weight is [2N, K]"
+    );
+
+    TORCH_CHECK(
+        (vl == 0 && ks == 0) || (vl != 0 && ks != 0),
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: vl and ks must both be zero for auto-select or both be explicit"
+    );
+
+    if (vl != 0 || ks != 0) {
+        validate_gemv_fp8_config(K, vl, ks, "esimd_gemv_gelu_tanh_mul_fp8_pert");
+    }
+
+    auto& dpcpp_queue = get_device_queue(hidden_states);
+
+    if (vl == 0 && ks == 0) {
+        gemv_gelu_tanh_mul_fp8_pert_host(
+            reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
+            reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+            gemv_scale.data_ptr<float>(),
+            reinterpret_cast<fp16*>(output.data_ptr()),
+            N,
+            K,
+            gemv_scale_count,
+            fp8_mode,
+            dpcpp_queue);
+    } else {
+        gemv_gelu_tanh_mul_fp8_pert_host(
+            reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
+            reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+            gemv_scale.data_ptr<float>(),
+            reinterpret_cast<fp16*>(output.data_ptr()),
+            N,
+            K,
+            (int)vl,
+            (int)ks,
+            gemv_scale_count,
             fp8_mode,
             dpcpp_queue);
     }

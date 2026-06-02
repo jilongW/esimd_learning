@@ -118,14 +118,13 @@ SYCL_ESIMD_FUNCTION inline simd<float, VL> fp8_dequant_rng2_mode(
 }
 
 SYCL_ESIMD_FUNCTION inline float gelu_tanh_scalar(float x) {
-    constexpr float kAlpha = 0.7978845608028654f;
-    constexpr float kBeta = 0.044715f;
-    float x2 = x * x;
-    float x3 = x2 * x;
-    float tanh_arg = (x + kBeta * x3) * kAlpha;
-    if (tanh_arg > 10.0f) tanh_arg = 10.0f;
-    if (tanh_arg < -10.0f) tanh_arg = -10.0f;
-    float exp_2x = sycl::exp(tanh_arg * 2.0f);
+    constexpr float BETA = M_SQRT2 * M_2_SQRTPI * 0.5f;
+    constexpr float KAPPA = 0.044715f;
+    float x_cube = x * x * x;
+    float inner = BETA * (x + KAPPA * x_cube);
+    if (inner > 10.0f) inner = 10.0f;
+    if (inner < -10.0f) inner = -10.0f;
+    float exp_2x = sycl::exp(inner * 2.0f);
     float tanh_val = (exp_2x - 1.0f) / (exp_2x + 1.0f);
     return 0.5f * x * (1.0f + tanh_val);
 }
