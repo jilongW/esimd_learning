@@ -3,8 +3,7 @@ from pathlib import Path
 import time
 
 import torch
-
-
+from vllm.platforms import current_platform
 EPS = 1e-6
 DUMP_DIR = Path.home() / "esimd_learning"/ "dumps" 
 
@@ -32,15 +31,17 @@ def _reshape_heads(x: torch.Tensor, n_heads: int, head_dim: int) -> torch.Tensor
 
 
 def _rms_with_weight(x: torch.Tensor, weight: torch.Tensor, eps: float) -> torch.Tensor:
-    x_f = x.float()
-    inv = torch.rsqrt(x_f.pow(2).mean(dim=-1, keepdim=True) + eps)
-    return (x_f * inv * weight.float()).to(x.dtype)
+    out = torch.empty_like(x)
+    torch.ops._C.rms_norm(out, x, weight, eps)
+    return out
 
 
 def _rms_no_weight(x: torch.Tensor, eps: float) -> torch.Tensor:
-    x_f = x.float()
-    inv = torch.rsqrt(x_f.pow(2).mean(dim=-1, keepdim=True) + eps)
-    return (x_f * inv).to(x.dtype)
+    out = torch.empty_like(x)
+    unit_weight = torch.ones((x.shape[-1],), dtype=x.dtype, device=x.device)
+    torch.ops._C.rms_norm(out, x, unit_weight, eps)
+    return out
+
 
 
 def _identity_rope_cache(max_pos: int, rotary_dim: int, device: torch.device) -> torch.Tensor:
@@ -65,49 +66,34 @@ def benchmark_two_paths_perf_and_bandwidth(
     kind: str = "full",
     warmup: int = 20,
     iters: int = 100,
+    n_tokens: int = 4096,
+    q_heads: int = 8,
+    kv_heads: int = 4,
+    head_dim: int = 256,
+    is_kv_shared_layer: bool | None = None,
 ) -> None:
     from custom_esimd_kernels_vllm import esimd_qkv_split_norm_rope_gemma
 
     if not hasattr(torch, "xpu") or not torch.xpu.is_available():
         raise RuntimeError("XPU is not available for benchmark")
 
-    base = DUMP_DIR
-    qkv = torch.load(base / f"gemma4_{kind}_qkv.pt", map_location="cpu")
-    qkv_norm = torch.load(base / f"gemma4_{kind}_qkv_norm.pt", map_location="cpu")
-    rope = torch.load(base / f"gemma4_{kind}_rotary_emb.pt", map_location="cpu")
+    if is_kv_shared_layer is None:
+        is_kv_shared_layer = (kind == "sliding")
 
-    if not isinstance(qkv, torch.Tensor) or not isinstance(qkv_norm, dict) or not isinstance(rope, dict):
-        raise RuntimeError(f"Invalid benchmark dump inputs for kind={kind}")
+    if n_tokens <= 0 or q_heads <= 0 or kv_heads <= 0 or head_dim <= 0:
+        raise RuntimeError("Invalid benchmark shape arguments")
 
-    is_kv_shared_layer = bool(qkv_norm.get("is_kv_shared_layer"))
-    head_dim = int(qkv_norm.get("head_dim") or rope.get("head_size") or rope.get("rotary_dim") or 256)
-    rope_rotary_dim = int(rope.get("rotary_dim") or head_dim)
-    if rope_rotary_dim != head_dim:
-        raise RuntimeError(
-            f"Kernel now requires full rotary: rotary_dim({rope_rotary_dim}) != head_dim({head_dim}) for {kind}"
-        )
-
-    q_heads = int(qkv_norm.get("num_heads") or 0)
-    kv_heads = int(qkv_norm.get("num_kv_heads") or 0)
-    if q_heads <= 0 or kv_heads <= 0:
-        raise RuntimeError(f"Invalid num_heads/num_kv_heads in qkv_norm dump for {kind}")
-
-    q_norm_weight = qkv_norm.get("q_norm_weight")
-    k_norm_weight = qkv_norm.get("k_norm_weight")
-    q_norm_eps = float(qkv_norm.get("q_norm_eps") or EPS)
-    k_norm_eps = float(qkv_norm.get("k_norm_eps") or EPS)
-    v_norm_eps = float(qkv_norm.get("v_norm_eps") or EPS)
-    if not isinstance(q_norm_weight, torch.Tensor) or not isinstance(k_norm_weight, torch.Tensor):
-        raise RuntimeError(f"Missing q_norm_weight/k_norm_weight for benchmark kind={kind}")
+    q_norm_eps = EPS
+    k_norm_eps = EPS
+    v_norm_eps = EPS
 
     q_size = q_heads * head_dim
     kv_size = kv_heads * head_dim
-    n_tokens = qkv.shape[0]
 
-    qkv_xpu = qkv.to("xpu", dtype=torch.float16).contiguous()
-    q_norm_weight_xpu = q_norm_weight.to("xpu", dtype=torch.float16).contiguous()
-    k_norm_weight_xpu = k_norm_weight.to("xpu", dtype=torch.float16).contiguous()
-
+    qkv_xpu = torch.randn((n_tokens, q_size + 2 * kv_size), dtype=torch.float16, device="xpu").contiguous()
+    # Gemma RMSNorm weight is around 1.0; kernel input uses (weight - 1.0).
+    q_norm_weight_xpu = (1.0 + 0.01 * torch.randn((head_dim,), dtype=torch.float16, device="xpu")).contiguous()
+    k_norm_weight_xpu = (1.0 + 0.01 * torch.randn((head_dim,), dtype=torch.float16, device="xpu")).contiguous()
     norm_wq_xpu = (q_norm_weight_xpu.float() - 1.0).to(torch.float16).contiguous()
     norm_wk_xpu = (k_norm_weight_xpu.float() - 1.0).to(torch.float16).contiguous()
 
@@ -248,12 +234,10 @@ def test_esimd_qkv_split_norm_rope_gemma_vs_dump() -> None:
         if not isinstance(k_norm_weight, torch.Tensor):
             raise RuntimeError(f"Missing k_norm_weight dump for {kind}")
 
-        if isinstance(v_norm_weight, torch.Tensor):
-            raise RuntimeError(f"Expected v_norm has no weight, but found v_norm_weight for {kind}")
-
         qkv_xpu = qkv.to("xpu", dtype=torch.float16).contiguous()
         q_norm_weight_xpu = q_norm_weight.to("xpu", dtype=torch.float16).contiguous()
         k_norm_weight_xpu = k_norm_weight.to("xpu", dtype=torch.float16).contiguous()
+        v_norm_weight_xpu = v_norm_weight.to("xpu", dtype=torch.float16).contiguous()
 
         q_size = q_heads * head_dim
         kv_size = kv_heads * head_dim
@@ -267,7 +251,7 @@ def test_esimd_qkv_split_norm_rope_gemma_vs_dump() -> None:
             v_ref = v_raw
         else:
             k_ref_h = _rms_with_weight(_reshape_heads(k_raw, kv_heads, head_dim), k_norm_weight_xpu, k_norm_eps)
-            v_ref_h = _rms_no_weight(_reshape_heads(v_raw, kv_heads, head_dim), v_norm_eps)
+            v_ref_h = _rms_with_weight(_reshape_heads(v_raw, kv_heads, head_dim), v_norm_weight_xpu, v_norm_eps)
             k_ref = k_ref_h.flatten(-2, -1)
             v_ref = v_ref_h.flatten(-2, -1)
 
