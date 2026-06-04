@@ -13,18 +13,12 @@ inline void select_rms_norm_vl_ks(uint32_t rows, uint32_t V, int& vl, int& ks) {
     vl = 512;
     ks = 1;
 
-    if (V <= 256){
-        vl = 128;
-        ks =1;
-    } else if ( V <= 512){
+    if ( V <= 512){
         vl = 256;
         ks = 1;
-    } else if ( V <= 2048){
+    } else if ( V <= 2560){
         vl = 128;
         ks = 10;
-    } else if ( V <= 2560){
-        vl = 256;
-        ks = 5;
     } else if ( V <= 5120){
         vl = 256;
         ks = 10;
@@ -136,6 +130,30 @@ inline void rms_norm_host(
     int vl,
     int ks,
     bool is_bf16,
+    sycl::queue& q);
+
+inline void rms_norm_host(
+    const uint8_t* x_ptr,
+    const uint8_t* weight_ptr,
+    uint8_t* output_ptr,
+    int rows,
+    int V,
+    float eps,
+    bool is_bf16,
+    sycl::queue& q);
+
+
+
+inline void rms_norm_host(
+    const uint8_t* x_ptr,
+    const uint8_t* weight_ptr,
+    uint8_t* output_ptr,
+    int rows,
+    int V,
+    float eps,
+    int vl,
+    int ks,
+    bool is_bf16,
     sycl::queue& q)
 {
     if (V == 256 && vl == 256 && ks == 1) {
@@ -168,21 +186,25 @@ inline void rms_norm_host(
 
         if (vl == 1024 && ks == 1) { rms_norm_host_impl<bf16, 1024, 1>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 1024 && ks == 2) { rms_norm_host_impl<bf16, 1024, 2>(typed_x, typed_w, typed_out, rows, V, eps, q); }
+        else if (vl == 1024 && ks == 4) { rms_norm_host_impl<bf16, 1024, 4>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 1024 && ks == 5) { rms_norm_host_impl<bf16, 1024, 5>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 1024 && ks == 8) { rms_norm_host_impl<bf16, 1024, 8>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 1024 && ks == 10) { rms_norm_host_impl<bf16, 1024, 10>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 512 && ks == 1) { rms_norm_host_impl<bf16, 512, 1>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 512 && ks == 2) { rms_norm_host_impl<bf16, 512, 2>(typed_x, typed_w, typed_out, rows, V, eps, q); }
+        else if (vl == 512 && ks == 4) { rms_norm_host_impl<bf16, 512, 4>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 512 && ks == 5) { rms_norm_host_impl<bf16, 512, 5>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 512 && ks == 8) { rms_norm_host_impl<bf16, 512, 8>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 512 && ks == 10) { rms_norm_host_impl<bf16, 512, 10>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 256 && ks == 1) { rms_norm_host_impl<bf16, 256, 1>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 256 && ks == 2) { rms_norm_host_impl<bf16, 256, 2>(typed_x, typed_w, typed_out, rows, V, eps, q); }
+        else if (vl == 256 && ks == 4) { rms_norm_host_impl<bf16, 256, 4>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 256 && ks == 5) { rms_norm_host_impl<bf16, 256, 5>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 256 && ks == 8) { rms_norm_host_impl<bf16, 256, 8>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 256 && ks == 10) { rms_norm_host_impl<bf16, 256, 10>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 128 && ks == 1) { rms_norm_host_impl<bf16, 128, 1>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 128 && ks == 2) { rms_norm_host_impl<bf16, 128, 2>(typed_x, typed_w, typed_out, rows, V, eps, q); }
+        else if (vl == 128 && ks == 4) { rms_norm_host_impl<bf16, 128, 4>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 128 && ks == 5) { rms_norm_host_impl<bf16, 128, 5>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 128 && ks == 8) { rms_norm_host_impl<bf16, 128, 8>(typed_x, typed_w, typed_out, rows, V, eps, q); }
         else if (vl == 128 && ks == 10) { rms_norm_host_impl<bf16, 128, 10>(typed_x, typed_w, typed_out, rows, V, eps, q); }
@@ -196,26 +218,57 @@ inline void rms_norm_host(
 
     if (vl == 1024 && ks == 1) { rms_norm_host_impl<fp16, 1024, 1>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 1024 && ks == 2) { rms_norm_host_impl<fp16, 1024, 2>(typed_x, typed_w, typed_out, rows, V, eps, q); }
+    else if (vl == 1024 && ks == 4) { rms_norm_host_impl<fp16, 1024, 4>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 1024 && ks == 5) { rms_norm_host_impl<fp16, 1024, 5>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 1024 && ks == 8) { rms_norm_host_impl<fp16, 1024, 8>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 1024 && ks == 10) { rms_norm_host_impl<fp16, 1024, 10>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 512 && ks == 1) { rms_norm_host_impl<fp16, 512, 1>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 512 && ks == 2) { rms_norm_host_impl<fp16, 512, 2>(typed_x, typed_w, typed_out, rows, V, eps, q); }
+    else if (vl == 512 && ks == 4) { rms_norm_host_impl<fp16, 512, 4>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 512 && ks == 5) { rms_norm_host_impl<fp16, 512, 5>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 512 && ks == 8) { rms_norm_host_impl<fp16, 512, 8>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 512 && ks == 10) { rms_norm_host_impl<fp16, 512, 10>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 256 && ks == 1) { rms_norm_host_impl<fp16, 256, 1>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 256 && ks == 2) { rms_norm_host_impl<fp16, 256, 2>(typed_x, typed_w, typed_out, rows, V, eps, q); }
+    else if (vl == 256 && ks == 4) { rms_norm_host_impl<fp16, 256, 4>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 256 && ks == 5) { rms_norm_host_impl<fp16, 256, 5>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 256 && ks == 8) { rms_norm_host_impl<fp16, 256, 8>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 256 && ks == 10) { rms_norm_host_impl<fp16, 256, 10>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 128 && ks == 1) { rms_norm_host_impl<fp16, 128, 1>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 128 && ks == 2) { rms_norm_host_impl<fp16, 128, 2>(typed_x, typed_w, typed_out, rows, V, eps, q); }
+    else if (vl == 128 && ks == 4) { rms_norm_host_impl<fp16, 128, 4>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 128 && ks == 5) { rms_norm_host_impl<fp16, 128, 5>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 128 && ks == 8) { rms_norm_host_impl<fp16, 128, 8>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else if (vl == 128 && ks == 10) { rms_norm_host_impl<fp16, 128, 10>(typed_x, typed_w, typed_out, rows, V, eps, q); }
     else { throw std::runtime_error("rms_norm_host: unsupported vl/ks"); }
 }
+
+inline void rms_norm_host(
+    const uint8_t* x_ptr,
+    const uint8_t* weight_ptr,
+    uint8_t* output_ptr,
+    int rows,
+    int V,
+    float eps,
+    bool is_bf16,
+    sycl::queue& q){
+        int vl = 128;
+        int ks = 1;
+        select_rms_norm_vl_ks(rows, V, vl, ks);
+        using RmsNormDispatchFn = void (*)(
+            const uint8_t*,
+            const uint8_t*,
+            uint8_t*,
+            int,
+            int,
+            float,
+            int,
+            int,
+            bool,
+            sycl::queue&);
+        RmsNormDispatchFn dispatch = &rms_norm_host;
+        dispatch(x_ptr, weight_ptr, output_ptr, rows, V, eps, vl, ks, is_bf16, q);
+    }
 
 template <typename scalar_t>
 struct RmsNorm256_kernel {

@@ -12,8 +12,10 @@
 #include "esimd_kernels/gemv_gelu_tanh_mul_fused.h"
 #include "esimd_kernels/norm_gemv_fused.h"
 #include "esimd_kernels/rms_norm.h"
+#include "esimd_kernels/rms_norm_res.h"
 #include "esimd_kernels/resadd_norm_gemv_fused.h"
 #include "esimd_kernels/norm_gemv2_geglu_fused.h"
+#include "esimd_kernels/qkv_split_norm_rope_gemma.h"
 
 #define EXTRACT_PTR(var, tensor) auto var = reinterpret_cast<uint8_t*>(tensor.data_ptr())
 
@@ -29,43 +31,6 @@ static inline bool is_supported_gemv_fp8_pern_config(int64_t vl, int64_t ks) {
     return (vl == 512 && (ks == 1 || ks == 2)) ||
            (vl == 256 && (ks == 1 || ks == 2 || ks == 4 || ks == 8)) ||
            (vl == 128 && (ks == 1 || ks == 2 || ks == 4 || ks == 8 || ks == 10));
-}
-
-static inline void validate_gemv_fp8_config(
-    int64_t K,
-    int64_t vl,
-    int64_t ks,
-    const char* op_name) {
-    TORCH_CHECK(
-        vl == 128 || vl == 256 || vl == 512,
-        op_name,
-        ": vl must be one of 128, 256, 512"
-    );
-    TORCH_CHECK(
-        ks == 1 || ks == 2 || ks == 4 || ks == 8 || ks == 10,
-        op_name,
-        ": ks must be one of 1, 2, 4, 8, 10"
-    );
-    TORCH_CHECK(
-        is_supported_gemv_fp8_pern_config(vl, ks),
-        op_name,
-        ": unsupported vl/ks combination"
-    );
-    TORCH_CHECK(
-        K % ks == 0,
-        op_name,
-        ": K must be divisible by ks"
-    );
-    TORCH_CHECK(
-        K % vl == 0,
-        op_name,
-        ": K must be divisible by vl"
-    );
-    TORCH_CHECK(
-        (K / ks) % vl == 0,
-        op_name,
-        ": K / ks must be divisible by vl"
-    );
 }
 
 static inline void validate_gemv_fp8_io(
@@ -94,7 +59,6 @@ at::Tensor esimd_gemv_fp8_pern(
     at::Tensor output,
     int64_t N, int64_t K, int64_t vl, int64_t ks) {
     validate_gemv_fp8_io(input, output, "esimd_gemv_fp8_pern");
-    validate_gemv_fp8_config(K, vl, ks, "esimd_gemv_fp8_pern");
     EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
     EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
     auto& dpcpp_queue = get_device_queue(input);
@@ -178,7 +142,6 @@ at::Tensor esimd_gemv_fp8_pert(
     at::Tensor output,
     int64_t N, int64_t K, int64_t vl, int64_t ks) {
     validate_gemv_fp8_io(input, output, "esimd_gemv_fp8_pert");
-    validate_gemv_fp8_config(K, vl, ks, "esimd_gemv_fp8_pert");
 
     EXTRACT_PTR(p_in, input); EXTRACT_PTR(p_w, weight);
     EXTRACT_PTR(p_sc, weight_scale); EXTRACT_PTR(p_out, output);
@@ -283,39 +246,133 @@ at::Tensor esimd_rms_norm(
         weight.size(0) == K,
         "esimd_rms_norm: weight size must match hidden_states last dimension"
     );
+    
+
+    auto& dpcpp_queue = get_device_queue(hidden_states);
+    if (vl == 0 && ks == 0) {
+        rms_norm_host(
+            reinterpret_cast<const uint8_t*>(hidden_states.data_ptr()),
+            reinterpret_cast<const uint8_t*>(weight.data_ptr()),
+            reinterpret_cast<uint8_t*>(output.data_ptr()),
+            rows,
+            K,
+            (float)eps,
+            hidden_states.scalar_type() == at::ScalarType::BFloat16,
+            dpcpp_queue);
+    }
+    else{
+        TORCH_CHECK(
+            K % (int)vl == 0,
+            "esimd_rms_norm: hidden size must be divisible by vl"
+        );
+        TORCH_CHECK(
+            ((int64_t)vl * ks < K) || (K == 256 && vl == 256 && ks == 1),
+            "esimd_rms_norm: vl * ks must be smaller than hidden size unless using the 256:1 specialization"
+        );
+        rms_norm_host(
+            reinterpret_cast<const uint8_t*>(hidden_states.data_ptr()),
+            reinterpret_cast<const uint8_t*>(weight.data_ptr()),
+            reinterpret_cast<uint8_t*>(output.data_ptr()),
+            rows,
+            K,
+            (float)eps,
+            (int)vl,
+            (int)ks,
+            hidden_states.scalar_type() == at::ScalarType::BFloat16,
+            dpcpp_queue);
+    }
+    return output;
+}
+
+at::Tensor esimd_rms_norm_res(
+    at::Tensor hidden_states,
+    at::Tensor res,
+    at::Tensor weight,
+    double eps,
+    at::Tensor output,
+    int64_t vl,
+    int64_t ks)
+{
     TORCH_CHECK(
-        vl == 128 || vl == 256 || vl == 512 || vl == 1024,
-        "esimd_rms_norm: vl must be one of 128, 256, 512, 1024"
+        hidden_states.scalar_type() == at::ScalarType::Half ||
+            hidden_states.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_rms_norm_res: hidden_states must be fp16 or bf16"
     );
     TORCH_CHECK(
-        ks == 1 || ks == 2 || ks == 5 || ks == 8 || ks == 10,
-        "esimd_rms_norm: ks must be one of 1, 2, 5, 8, 10"
+        res.scalar_type() == at::ScalarType::Half ||
+            res.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_rms_norm_res: res must be fp16 or bf16"
     );
     TORCH_CHECK(
-        K % (int)vl == 0,
-        "esimd_rms_norm: hidden size must be divisible by vl"
+        weight.scalar_type() == hidden_states.scalar_type(),
+        "esimd_rms_norm_res: weight must match hidden_states dtype"
     );
     TORCH_CHECK(
-        ((int64_t)vl * ks < K) || (K == 256 && vl == 256 && ks == 1),
-        "esimd_rms_norm: vl * ks must be smaller than hidden size unless using the 256:1 specialization"
+        output.scalar_type() == hidden_states.scalar_type(),
+        "esimd_rms_norm_res: output must match hidden_states dtype"
+    );
+    TORCH_CHECK(
+        hidden_states.dim() >= 2,
+        "esimd_rms_norm_res: hidden_states must have at least 2 dimensions"
+    );
+    TORCH_CHECK(
+        weight.dim() == 1,
+        "esimd_rms_norm_res: weight must be a 1D tensor"
+    );
+    TORCH_CHECK(
+        output.sizes() == hidden_states.sizes(),
+        "esimd_rms_norm_res: output shape must match hidden_states"
+    );
+
+    int K = (int)hidden_states.size(hidden_states.dim() - 1);
+    int64_t rows64 = hidden_states.numel() / K;
+    TORCH_CHECK(rows64 <= std::numeric_limits<int>::max(), "esimd_rms_norm_res: flattened rows exceed int range");
+    int rows = (int)rows64;
+
+    TORCH_CHECK(
+        weight.size(0) == K,
+        "esimd_rms_norm_res: weight size must match hidden_states last dimension"
     );
 
     auto& dpcpp_queue = get_device_queue(hidden_states);
-
-    rms_norm_host(
+    if (vl == 0 && ks == 0) {
+        rms_norm_res_host(
         reinterpret_cast<const uint8_t*>(hidden_states.data_ptr()),
+        reinterpret_cast<const uint8_t*>(res.data_ptr()),
         reinterpret_cast<const uint8_t*>(weight.data_ptr()),
         reinterpret_cast<uint8_t*>(output.data_ptr()),
         rows,
         K,
         (float)eps,
-        (int)vl,
-        (int)ks,
         hidden_states.scalar_type() == at::ScalarType::BFloat16,
         dpcpp_queue);
-
+    }
+    else{
+        TORCH_CHECK(vl > 0 && ks > 0, "esimd_rms_norm_res: vl and ks must be positive, or both 0 for auto mode");
+        TORCH_CHECK(
+            K % (int)vl == 0,
+            "esimd_rms_norm_res: hidden size must be divisible by vl"
+        );
+        TORCH_CHECK(
+            ((int64_t)vl * ks < K) || (K == 256 && vl == 256 && ks == 1),
+            "esimd_rms_norm_res: vl * ks must be smaller than hidden size unless using the 256:1 specialization"
+        );
+        rms_norm_res_host(
+            reinterpret_cast<const uint8_t*>(hidden_states.data_ptr()),
+            reinterpret_cast<const uint8_t*>(res.data_ptr()),
+            reinterpret_cast<const uint8_t*>(weight.data_ptr()),
+            reinterpret_cast<uint8_t*>(output.data_ptr()),
+            rows,
+            K,
+            (float)eps,
+            (int)vl,
+            (int)ks,
+            hidden_states.scalar_type() == at::ScalarType::BFloat16,
+            dpcpp_queue);
+    }
     return output;
 }
+
 
 at::Tensor esimd_norm_gemv_fp8_pert(
     at::Tensor hidden_states,
@@ -375,9 +432,6 @@ at::Tensor esimd_norm_gemv_fp8_pert(
         "esimd_norm_gemv_fp8_pert: vl and ks must both be zero for auto-select or both be explicit"
     );
 
-    if (vl != 0 || ks != 0) {
-        validate_gemv_fp8_config(K, vl, ks, "esimd_norm_gemv_fp8_pert");
-    }
 
     auto& dpcpp_queue = get_device_queue(hidden_states);
 
@@ -407,6 +461,118 @@ at::Tensor esimd_norm_gemv_fp8_pert(
             (float)eps,
             fp8_mode,
             dpcpp_queue);
+    }
+
+    return output;
+}
+
+
+at::Tensor esimd_gemv_gelu_tanh_mul_y_fp8_pert(
+    at::Tensor hidden_states,
+    at::Tensor gemv_weight,
+    at::Tensor gemv_scale,
+    at::Tensor per_layer_input,
+    at::Tensor output,
+    int64_t vl,
+    int64_t ks)
+{
+    int N = (int)gemv_weight.size(0);
+    int K = (int)gemv_weight.size(1);
+    int gemv_scale_count = (int)gemv_scale.numel();
+    int fp8_mode = get_fp8_mode(gemv_weight);
+
+    TORCH_CHECK(
+        hidden_states.scalar_type() == at::ScalarType::Half ||
+            hidden_states.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_gemv_gelu_tanh_mul_y_fp8_pert: hidden_states must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        per_layer_input.scalar_type() == at::ScalarType::Half ||
+            per_layer_input.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_gemv_gelu_tanh_mul_y_fp8_pert: per_layer_input must be fp16 or bf16"
+    );
+    TORCH_CHECK(
+        output.scalar_type() == hidden_states.scalar_type(),
+        "esimd_gemv_gelu_tanh_mul_y_fp8_pert: output must match hidden_states dtype"
+    );
+    TORCH_CHECK(
+        hidden_states.dim() == 2 && hidden_states.size(0) == 1,
+        "esimd_gemv_gelu_tanh_mul_y_fp8_pert: hidden_states must have shape [1, K]"
+    );
+    TORCH_CHECK(
+        gemv_scale.scalar_type() == at::ScalarType::Float,
+        "esimd_gemv_gelu_tanh_mul_y_fp8_pert: gemv_scale must be float32"
+    );
+    TORCH_CHECK(
+        per_layer_input.numel() == N,
+        "esimd_gemv_gelu_tanh_mul_y_fp8_pert: per_layer_input must have N elements"
+    );
+    TORCH_CHECK(
+        output.numel() == N,
+        "esimd_gemv_gelu_tanh_mul_y_fp8_pert: output must have N elements"
+    );
+
+    TORCH_CHECK(
+        (vl == 0 && ks == 0) || (vl != 0 && ks != 0),
+        "esimd_gemv_gelu_tanh_mul_y_fp8_pert: vl and ks must both be zero for auto-select or both be explicit"
+    );
+
+
+    auto& dpcpp_queue = get_device_queue(hidden_states);
+    bool is_bf16 = hidden_states.scalar_type() == at::ScalarType::BFloat16;
+
+    if (vl == 0 && ks == 0) {
+        if (is_bf16) {
+            gemv_gelu_tanh_mul_y_fp8_pert_host(
+                reinterpret_cast<const bf16*>(hidden_states.data_ptr()),
+                reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+                gemv_scale.data_ptr<float>(),
+                reinterpret_cast<const bf16*>(per_layer_input.data_ptr()),
+                reinterpret_cast<bf16*>(output.data_ptr()),
+                N,
+                K,
+                fp8_mode,
+                dpcpp_queue);
+        } else {
+            gemv_gelu_tanh_mul_y_fp8_pert_host(
+                reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
+                reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+                gemv_scale.data_ptr<float>(),
+                reinterpret_cast<const fp16*>(per_layer_input.data_ptr()),
+                reinterpret_cast<fp16*>(output.data_ptr()),
+                N,
+                K,
+                fp8_mode,
+                dpcpp_queue);
+        }
+    } else {
+        if (is_bf16) {
+            gemv_gelu_tanh_mul_y_fp8_pert_host(
+                reinterpret_cast<const bf16*>(hidden_states.data_ptr()),
+                reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+                gemv_scale.data_ptr<float>(),
+                reinterpret_cast<const bf16*>(per_layer_input.data_ptr()),
+                reinterpret_cast<bf16*>(output.data_ptr()),
+                N,
+                K,
+                (int)vl,
+                (int)ks,
+                fp8_mode,
+                dpcpp_queue);
+        } else {
+            gemv_gelu_tanh_mul_y_fp8_pert_host(
+                reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
+                reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+                gemv_scale.data_ptr<float>(),
+                reinterpret_cast<const fp16*>(per_layer_input.data_ptr()),
+                reinterpret_cast<fp16*>(output.data_ptr()),
+                N,
+                K,
+                (int)vl,
+                (int)ks,
+                fp8_mode,
+                dpcpp_queue);
+        }
     }
 
     return output;
@@ -431,12 +597,13 @@ at::Tensor esimd_gemv_gelu_tanh_mul_fp8_pert(
     int fp8_mode = get_fp8_mode(gemv_weight);
 
     TORCH_CHECK(
-        hidden_states.scalar_type() == at::ScalarType::Half,
-        "esimd_gemv_gelu_tanh_mul_fp8_pert: hidden_states must be fp16"
+        hidden_states.scalar_type() == at::ScalarType::Half ||
+            hidden_states.scalar_type() == at::ScalarType::BFloat16,
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: hidden_states must be fp16 or bf16"
     );
     TORCH_CHECK(
-        output.scalar_type() == at::ScalarType::Half,
-        "esimd_gemv_gelu_tanh_mul_fp8_pert: output must be fp16"
+        output.scalar_type() == hidden_states.scalar_type(),
+        "esimd_gemv_gelu_tanh_mul_fp8_pert: output must match hidden_states dtype"
     );
     TORCH_CHECK(
         hidden_states.dim() == 2 && hidden_states.size(0) == 1,
@@ -460,40 +627,67 @@ at::Tensor esimd_gemv_gelu_tanh_mul_fp8_pert(
         "esimd_gemv_gelu_tanh_mul_fp8_pert: vl and ks must both be zero for auto-select or both be explicit"
     );
 
-    if (vl != 0 || ks != 0) {
-        validate_gemv_fp8_config(K, vl, ks, "esimd_gemv_gelu_tanh_mul_fp8_pert");
-    }
-
     auto& dpcpp_queue = get_device_queue(hidden_states);
+    bool is_bf16 = hidden_states.scalar_type() == at::ScalarType::BFloat16;
 
     if (vl == 0 && ks == 0) {
-        gemv_gelu_tanh_mul_fp8_pert_host(
-            reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
-            reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
-            gemv_scale.data_ptr<float>(),
-            reinterpret_cast<fp16*>(output.data_ptr()),
-            N,
-            K,
-            gemv_scale_count,
-            fp8_mode,
-            dpcpp_queue);
+        if (is_bf16) {
+            gemv_gelu_tanh_mul_fp8_pert_host(
+                reinterpret_cast<const bf16*>(hidden_states.data_ptr()),
+                reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+                gemv_scale.data_ptr<float>(),
+                reinterpret_cast<bf16*>(output.data_ptr()),
+                N,
+                K,
+                gemv_scale_count,
+                fp8_mode,
+                dpcpp_queue);
+        } else {
+            gemv_gelu_tanh_mul_fp8_pert_host(
+                reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
+                reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+                gemv_scale.data_ptr<float>(),
+                reinterpret_cast<fp16*>(output.data_ptr()),
+                N,
+                K,
+                gemv_scale_count,
+                fp8_mode,
+                dpcpp_queue);
+        }
     } else {
-        gemv_gelu_tanh_mul_fp8_pert_host(
-            reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
-            reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
-            gemv_scale.data_ptr<float>(),
-            reinterpret_cast<fp16*>(output.data_ptr()),
-            N,
-            K,
-            (int)vl,
-            (int)ks,
-            gemv_scale_count,
-            fp8_mode,
-            dpcpp_queue);
+        if (is_bf16) {
+            gemv_gelu_tanh_mul_fp8_pert_host(
+                reinterpret_cast<const bf16*>(hidden_states.data_ptr()),
+                reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+                gemv_scale.data_ptr<float>(),
+                reinterpret_cast<bf16*>(output.data_ptr()),
+                N,
+                K,
+                (int)vl,
+                (int)ks,
+                gemv_scale_count,
+                fp8_mode,
+                dpcpp_queue);
+        } else {
+            gemv_gelu_tanh_mul_fp8_pert_host(
+                reinterpret_cast<const fp16*>(hidden_states.data_ptr()),
+                reinterpret_cast<const uint8_t*>(gemv_weight.data_ptr()),
+                gemv_scale.data_ptr<float>(),
+                reinterpret_cast<fp16*>(output.data_ptr()),
+                N,
+                K,
+                (int)vl,
+                (int)ks,
+                gemv_scale_count,
+                fp8_mode,
+                dpcpp_queue);
+        }
     }
 
     return output;
 }
+
+
 
 at::Tensor esimd_gelu_tanh_and_mul(
     at::Tensor input,
@@ -635,10 +829,6 @@ at::Tensor esimd_norm_gemv2_geglu_fp8_pert(
         "esimd_norm_gemv2_geglu_fp8_pert: vl and ks must both be zero for auto-select or both be explicit"
     );
 
-    if (vl != 0 || ks != 0) {
-        validate_gemv_fp8_config(K, vl, ks, "esimd_norm_gemv2_geglu_fp8_pert");
-    }
-
     auto& dpcpp_queue = get_device_queue(hidden_states);
 
     if (vl == 0 && ks == 0) {
@@ -718,4 +908,46 @@ at::Tensor esimd_resadd_norm_gemv_fp8_pert(
         dpcpp_queue);
 
     return output;
+}
+
+// ---- QKV Split + RMSNorm + RoPE fused kernel for gemma4 ----
+
+// Persistent cos/sin cache (allocated once, FP64 precision on host -> FP16 on device)
+// cos_sin_cache now passed directly from caller (no static cache needed)
+
+at::Tensor esimd_qkv_split_norm_rope_gemma(
+    at::Tensor qkv_state,
+    at::Tensor q_out,
+    at::Tensor k_out,
+    at::Tensor v_out,
+    at::Tensor norm_wq,
+    at::Tensor norm_wk,
+    at::Tensor positions,
+    int64_t q_heads, int64_t kv_heads,
+    int64_t rotary_dim,
+    bool isKvSharedLayer,
+    at::Tensor cos_sin_cache) {
+
+    EXTRACT_PTR(p_qkv, qkv_state);
+    EXTRACT_PTR(p_q, q_out);
+    EXTRACT_PTR(p_k, k_out);
+    EXTRACT_PTR(p_v, v_out);
+    EXTRACT_PTR(p_nwq, norm_wq);
+    EXTRACT_PTR(p_nwk, norm_wk);
+    auto p_pos = reinterpret_cast<uint32_t*>(positions.data_ptr());
+    // cos_sin_cache: [max_pos, rotary_dim] fp16, interleaved [cos, sin] per position
+    auto p_cs = reinterpret_cast<sycl::half*>(cos_sin_cache.data_ptr());
+
+    uint32_t ntoks = qkv_state.size(0);
+    uint32_t hiddenDim = qkv_state.size(1);
+    uint32_t head_dim = q_out.size(1) / q_heads;
+
+    auto& dpcpp_queue = get_device_queue(qkv_state);
+    qkv_split_norm_rope_gemma_host(
+        p_qkv, p_q, p_k, p_v,
+        p_nwq, p_nwk, p_pos, p_cs,
+        ntoks, hiddenDim, head_dim, 
+        (uint32_t)q_heads, (uint32_t)kv_heads, isKvSharedLayer,
+        (uint32_t)rotary_dim, dpcpp_queue);
+    return q_out;
 }

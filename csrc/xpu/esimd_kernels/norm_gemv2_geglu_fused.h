@@ -202,7 +202,6 @@ struct NormGEMV2_fp8_pert_kernel {
 
     void operator()(sycl::nd_item<1> item) const SYCL_ESIMD_KERNEL {
         if constexpr (K_SPLIT > 1) {
-            constexpr int kSumSqSlmOffset = 0;
             constexpr int kInvRmsSlmOffset = K_SPLIT * sizeof(float);
             constexpr int kOutput0SlmOffset = kInvRmsSlmOffset + sizeof(float);
             constexpr int kOutput1SlmOffset = kOutput0SlmOffset + K_SPLIT * sizeof(float);

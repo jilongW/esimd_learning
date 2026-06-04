@@ -65,16 +65,17 @@ def _shape_rows_hidden(shape: tuple[int, ...]) -> tuple[int, int]:
     return rows, hidden_size
 
 
-def ref_rms_norm(hidden_states, weight, eps):
+def ref_rms_norm_res(hidden_states, res, weight, eps):
     hidden = hidden_states.cpu().float()
+    res = res.cpu().float()
     weight_f = weight.cpu().float()
     variance = hidden.pow(2).mean(dim=-1, keepdim=True)
     inv_rms = torch.rsqrt(variance + eps)
-    return hidden * inv_rms * weight_f
+    return hidden * inv_rms * weight_f + res
 
 
-def test_rms_norm_correctness():
-    from custom_esimd_kernels_vllm import esimd_rms_norm
+def test_rms_norm_res_correctness():
+    from custom_esimd_kernels_vllm import esimd_rms_norm_res
 
     torch.manual_seed(42)
     eps = 1e-6
@@ -83,25 +84,26 @@ def test_rms_norm_correctness():
         for shape in HIDDEN_SHAPES:
             rows, hidden_size = _shape_rows_hidden(shape)
             hidden = torch.randn(*shape, dtype=dtype, device=device)
+            res = torch.randn(*shape, dtype=dtype, device=device)
             weight = torch.randn(hidden_size, dtype=dtype, device=device) * 0.1
             out = torch.empty_like(hidden)
 
-            esimd_rms_norm(hidden, weight, eps, out)
+            esimd_rms_norm_res(hidden, res, weight, eps, out)
             torch.xpu.synchronize()
 
-            ref = ref_rms_norm(hidden, weight, eps)
+            ref = ref_rms_norm_res(hidden, res, weight, eps)
             diff = (out.cpu().float() - ref).abs()
             assert diff.max().item() < 0.1, (
                 f"dtype={dtype}, shape={tuple(hidden.shape)}, diff={diff.max().item():.4f}"
             )
 
 
-def _effective_rms_norm_bytes(hidden_states: torch.Tensor, weight: torch.Tensor) -> int:
+def _effective_rms_norm_bytes(hidden_states: torch.Tensor, res: torch.Tensor, weight: torch.Tensor) -> int:
     # Compare on the same algorithmic workload: two reads of x, one read of weight, one write of output.
     return (
         2 * hidden_states.numel() * hidden_states.element_size()
         + weight.numel() * weight.element_size()
-        + hidden_states.numel() * hidden_states.element_size()
+        + hidden_states.numel() * hidden_states.element_size() + res.numel() * res.element_size()
     )
 
 
@@ -161,10 +163,11 @@ def _make_input_pools(
     pool_size: int = 64,
 ) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
     hidden_pool = [torch.randn(*shape, dtype=dtype, device=device) for _ in range(pool_size)]
+    res = [torch.randn(*shape, dtype=dtype, device=device) for _ in range(pool_size)]
     weight_pool = [
         torch.randn(hidden_size, dtype=dtype, device=device) * 0.1 for _ in range(pool_size)
     ]
-    return hidden_pool, weight_pool
+    return hidden_pool, res, weight_pool
 
 
 def _valid_vl_ks(hidden_size: int) -> list[tuple[int, int]]:
@@ -179,8 +182,8 @@ def _valid_vl_ks(hidden_size: int) -> list[tuple[int, int]]:
     return valid
 
 
-def benchmark_rms_norm():
-    from custom_esimd_kernels_vllm import esimd_rms_norm
+def benchmark_rms_norm_res():
+    from custom_esimd_kernels_vllm import esimd_rms_norm_res
 
     if not hasattr(torch.ops, "_C") or not hasattr(torch.ops._C, "rms_norm"):
         vllm_repo = Path(__file__).resolve().parents[2] / "applications.ai.gpu.vllm-xpu"
@@ -204,12 +207,13 @@ def benchmark_rms_norm():
         rows, hidden_size = _shape_rows_hidden(shape)
         iters = _benchmark_iters(shape)
         for dtype in (torch.float16, torch.bfloat16):
-            hidden_pool, weight_pool = _make_input_pools(shape, hidden_size, dtype)
+            hidden_pool, res_pool, weight_pool = _make_input_pools(shape, hidden_size, dtype)
             hidden = hidden_pool[0]
+            res = res_pool[0]
             weight = weight_pool[0]
             out_torch = torch.empty_like(hidden)
             heuristic_vl, heuristic_ks = select_vl_ks(rows, hidden_size)
-            total_bytes = _effective_rms_norm_bytes(hidden, weight)
+            total_bytes = _effective_rms_norm_bytes(hidden, res, weight)
             total_flops = _rms_norm_flops(hidden)
             out_esimd = torch.empty_like(hidden)
 
@@ -217,11 +221,14 @@ def benchmark_rms_norm():
             best_us = None
             best_outputs = None
             torch_us, torch_outputs = _benchmark_one(
-                lambda index: torch.ops._C.rms_norm(
-                    out_torch,
-                    hidden_pool[index % len(hidden_pool)],
-                    weight_pool[index % len(weight_pool)],
-                    eps,
+                lambda index: (
+                    torch.ops._C.rms_norm(
+                        out_torch,
+                        hidden_pool[index % len(hidden_pool)],
+                        weight_pool[index % len(weight_pool)],
+                        eps,
+                    ),
+                    out_torch.add_(res_pool[index % len(res_pool)]),
                 ),
                 lambda: out_torch,
                 iters,
@@ -232,8 +239,9 @@ def benchmark_rms_norm():
 
             for vl, ks in _valid_vl_ks(hidden_size):
                 candidate_us, candidate_outputs = _benchmark_one(
-                    lambda index, vl=vl, ks=ks: esimd_rms_norm(
+                    lambda index, vl=vl, ks=ks: esimd_rms_norm_res(
                         hidden_pool[index % len(hidden_pool)],
+                        res_pool[index % len(res_pool)],
                         weight_pool[index % len(weight_pool)],
                         eps,
                         out_esimd,
@@ -268,5 +276,5 @@ def benchmark_rms_norm():
 
 
 if __name__ == "__main__":
-    test_rms_norm_correctness()
-    benchmark_rms_norm()
+    test_rms_norm_res_correctness()
+    benchmark_rms_norm_res()

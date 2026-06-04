@@ -7,7 +7,6 @@ from custom_esimd_kernels_vllm import (
     esimd_gemv_fp8,
     esimd_gelu_tanh_and_mul,
     esimd_norm_gemv2_geglu_fp8_pert,
-    esimd_norm_gemv_fp8_pert,
     esimd_rms_norm,
 )
 
@@ -17,94 +16,47 @@ WARMUP_ITERS = 10
 BENCHMARK_ITERS = 500
 TARGET_BW = 112.0
 SHAPES = [
+    (256, 256, 2048),
+    (256, 256, 2560),
+    (1024, 1024, 2560),
     (10240, 10240, 2560),
+    (10240, 10240, 5120),
 ]
 NORM_GEMV2_VL_CANDIDATES = (128, 256, 512)
 NORM_GEMV2_KS_CANDIDATES = (1, 2, 4, 8, 10)
+RMS_VL_CANDIDATES = (128, 256, 512, 1024)
+RMS_KS_CANDIDATES = (1, 2, 4, 5, 8, 10)
 
 
-def _normalize_vl_ks(k_size: int, vl: int, ks: int) -> tuple[int, int]:
-    k_per_thread = k_size // ks
-    while vl > k_per_thread or k_per_thread % vl != 0:
-        if vl > 128:
-            vl //= 2
-        elif ks == 10:
-            ks = 8
-        elif ks == 8:
-            ks = 4
-        elif ks == 4:
-            ks = 2
-        elif ks == 2:
-            ks = 1
-        else:
-            break
-        k_per_thread = k_size // ks
-    return vl, ks
+def _benchmark_xpu_callable(fn, warmup_iters: int = WARMUP_ITERS, benchmark_iters: int = BENCHMARK_ITERS) -> float:
+    for _ in range(warmup_iters):
+        fn()
 
-
-def _select_norm_gemv_vl_ks(n_size: int, k_size: int) -> tuple[int, int]:
-    if k_size < 256:
-        vl, ks = 128, 1
-    elif k_size == 256:
-        vl, ks = 256, 1
-    elif k_size >= 10240:
-        vl, ks = 256, 8
-    elif k_size >= 4096:
-        vl, ks = 256, 4
-    elif k_size >= 2560 and n_size >= 10240:
-        vl, ks = 256, 1
-    elif k_size >= 2560:
-        vl, ks = 128, 10
-    elif k_size >= 2048:
-        vl, ks = 256, 8
-    else:
-        vl, ks = 256, 1
-    return _normalize_vl_ks(k_size, vl, ks)
-
-
-def _select_rms_norm_vl_ks(rows: int, hidden_size: int) -> tuple[int, int]:
-    if hidden_size <= 256:
-        vl, ks = 256, 1
-    elif hidden_size <= 512:
-        vl, ks = (256, 1) if rows >= 64 else (128, 1)
-    elif hidden_size <= 2048:
-        vl, ks = (512, 2) if rows >= 64 else (1024, 1)
-    elif hidden_size <= 2560:
-        vl, ks = (256, 5) if rows >= 64 else (256, 8)
-    else:
-        vl, ks = (256, 5) if rows >= 64 else (256, 8)
-
-    while hidden_size % vl != 0 and vl > 128:
-        if vl == 1024:
-            vl = 512
-        else:
-            vl //= 2
-
-    while vl * ks >= hidden_size and not (hidden_size == 256 and vl == 256 and ks == 1):
-        if ks == 10:
-            ks = 8
-        elif ks == 8:
-            ks = 5
-        elif ks == 5:
-            ks = 2
-        elif ks == 2:
-            ks = 1
-        elif vl > 128:
-            vl //= 2
-            ks = 1
-        else:
-            raise ValueError(f"No valid rms_norm vl/ks for hidden_size={hidden_size}")
-
-    return vl, ks
+    torch.xpu.synchronize()
+    start = time.perf_counter()
+    for _ in range(benchmark_iters):
+        fn()
+    torch.xpu.synchronize()
+    elapsed = time.perf_counter() - start
+    return elapsed * 1e6 / benchmark_iters
 
 
 def _valid_norm_gemv2_configs(k_size: int) -> list[tuple[int, int]]:
     valid: list[tuple[int, int]] = []
     supported_by_kernel = {
-        (512, 1), (512, 2),
-        (256, 1), (256, 2), (256, 4), (256, 8),
-        (128, 1), (128, 2), (128, 4), (128, 8), (128, 10),
+        (512, 1),
+        (512, 2),
+        (256, 1),
+        (256, 2),
+        (256, 4),
+        (256, 8),
+        (128, 1),
+        (128, 2),
+        (128, 4),
+        (128, 8),
+        (128, 10),
     }
+
     for vl in NORM_GEMV2_VL_CANDIDATES:
         if k_size % vl != 0:
             continue
@@ -116,6 +68,85 @@ def _valid_norm_gemv2_configs(k_size: int) -> list[tuple[int, int]]:
             if (k_size // ks) % vl != 0:
                 continue
             valid.append((vl, ks))
+
+    if not valid:
+        raise RuntimeError(f"No valid norm_gemv2 vl/ks for K={k_size}")
+    return valid
+
+
+def _select_combined_heuristic_vl_ks(total_n: int, k_size: int) -> tuple[int, int]:
+    if k_size == 256:
+        return 256, 1
+    if k_size == 2048:
+        return 256, 8
+    if k_size == 4096:
+        return 256, 4
+    if k_size == 10240:
+        return 256, 8
+    if k_size == 2560:
+        if total_n <= 256:
+            return 128, 10
+        if total_n >= 10240:
+            return 256, 1
+        return 128, 4
+    if k_size >= 4096:
+        return 256, 4
+    if k_size >= 2048:
+        return 256, 8
+    return 128, 1
+
+
+def _valid_combined_configs(total_n: int, k_size: int) -> list[tuple[int, int]]:
+    del total_n
+    valid: list[tuple[int, int]] = []
+    for vl in NORM_GEMV2_VL_CANDIDATES:
+        if k_size % vl != 0:
+            continue
+        for ks in NORM_GEMV2_KS_CANDIDATES:
+            if k_size % ks != 0:
+                continue
+            if (k_size // ks) % vl != 0:
+                continue
+            if (vl * ks >= k_size) and not (k_size == 256 and vl == 256 and ks == 1):
+                continue
+            valid.append((vl, ks))
+
+    if not valid:
+        raise RuntimeError(f"No valid combined vl/ks for K={k_size}")
+    return valid
+
+
+def _select_rms_norm_vl_ks(rows: int, k_size: int) -> tuple[int, int]:
+    del rows
+    if k_size <= 256:
+        return 256, 1
+    if k_size <= 512:
+        return 256, 1
+    if k_size <= 2048:
+        return 512, 2
+    if k_size <= 2560:
+        return 256, 8
+    if k_size <= 5120:
+        return 512, 8
+    return 1024, 1
+
+
+def _valid_rms_configs(k_size: int) -> list[tuple[int, int]]:
+    valid: list[tuple[int, int]] = []
+    for vl in RMS_VL_CANDIDATES:
+        if k_size % vl != 0:
+            continue
+        for ks in RMS_KS_CANDIDATES:
+            if k_size % ks != 0:
+                continue
+            if (k_size // ks) % vl != 0:
+                continue
+            if (vl * ks >= k_size) and not (k_size == 256 and vl == 256 and ks == 1):
+                continue
+            valid.append((vl, ks))
+
+    if not valid:
+        raise RuntimeError(f"No valid rms vl/ks for K={k_size}")
     return valid
 
 
@@ -157,17 +188,88 @@ def _search_best_norm_gemv2_vl_ks(
     return best_vl, best_ks, best_latency
 
 
-def _benchmark_xpu_callable(fn, warmup_iters: int = WARMUP_ITERS, benchmark_iters: int = BENCHMARK_ITERS) -> float:
-    for _ in range(warmup_iters):
-        fn()
+def _search_best_combined_vl_ks(
+    hidden: torch.Tensor,
+    combined_weight: torch.Tensor,
+    combined_scale: torch.Tensor,
+    eps: float,
+) -> tuple[int, int, float]:
+    del eps
+    k_size = int(hidden.shape[1])
+    total_n = int(combined_weight.shape[0])
+    n_out = total_n // 2
+    candidates = _valid_combined_configs(total_n, k_size)
 
-    torch.xpu.synchronize()
-    start = time.perf_counter()
-    for _ in range(benchmark_iters):
-        fn()
-    torch.xpu.synchronize()
-    elapsed = time.perf_counter() - start
-    return elapsed * 1e6 / benchmark_iters
+    heuristic_vl, heuristic_ks = _select_combined_heuristic_vl_ks(total_n, k_size)
+    latency_tolerance_us = 0.2
+    best_cfg = None
+    best_us = None
+    rule_us = None
+    candidate_records: list[tuple[tuple[int, int], float]] = []
+
+    output = torch.empty(1, n_out, dtype=hidden.dtype, device=hidden.device)
+
+    for vl, ks in candidates:
+        def run_once(vl=vl, ks=ks) -> None:
+            esimd_gemv_gelu_tanh_mul_fp8_pert(
+                hidden,
+                combined_weight,
+                combined_scale,
+                output,
+                vl,
+                ks,
+            )
+
+        candidate_us = _benchmark_xpu_callable(run_once, warmup_iters=4, benchmark_iters=40)
+        candidate_records.append(((vl, ks), candidate_us))
+        if (vl, ks) == (heuristic_vl, heuristic_ks):
+            rule_us = candidate_us
+        if best_us is None or candidate_us < (best_us - latency_tolerance_us):
+            best_cfg = (vl, ks)
+            best_us = candidate_us
+        print(f"Tested combined config K={k_size} N={total_n}: VL={vl} KS={ks} -> {candidate_us:.2f} us")
+    if best_cfg is None:
+        best_cfg = (heuristic_vl, heuristic_ks)
+        best_us = rule_us if rule_us is not None else float("inf")
+
+    return best_cfg[0], best_cfg[1], float(best_us)
+
+
+def _search_best_rms_vl_ks(
+    hidden: torch.Tensor,
+    norm_weight: torch.Tensor,
+    eps: float,
+) -> tuple[int, int, float]:
+    rows = int(hidden.shape[0])
+    k_size = int(hidden.shape[1])
+    candidates = _valid_rms_configs(k_size)
+
+    heuristic_vl, heuristic_ks = _select_rms_norm_vl_ks(rows, k_size)
+    latency_tolerance_us = 0.2
+    best_cfg = None
+    best_us = None
+    rule_us = None
+    candidate_records: list[tuple[tuple[int, int], float]] = []
+
+    output = torch.empty_like(hidden)
+
+    for vl, ks in candidates:
+        def run_once(vl=vl, ks=ks) -> None:
+            esimd_rms_norm(hidden, norm_weight, eps, output, vl, ks)
+
+        candidate_us = _benchmark_xpu_callable(run_once, warmup_iters=4, benchmark_iters=40)
+        candidate_records.append(((vl, ks), candidate_us))
+        if (vl, ks) == (heuristic_vl, heuristic_ks):
+            rule_us = candidate_us
+        if best_us is None or candidate_us < (best_us - latency_tolerance_us):
+            best_cfg = (vl, ks)
+            best_us = candidate_us
+
+    if best_cfg is None:
+        best_cfg = (heuristic_vl, heuristic_ks)
+        best_us = rule_us if rule_us is not None else float("inf")
+
+    return best_cfg[0], best_cfg[1], float(best_us)
 
 
 def _norm_gemv2_fused_bytes(n0: int, n1: int, k_size: int) -> int:
@@ -209,8 +311,6 @@ def test_norm_gemv2_matches_three_paths() -> None:
         scale0 = torch.tensor([0.0008], dtype=torch.float32, device=DEVICE)
         scale1 = torch.tensor([0.0008], dtype=torch.float32, device=DEVICE)
 
-        total_n = n0 + n1
-        vl, ks = _select_norm_gemv_vl_ks(total_n, k_size)
         best_vl, best_ks, _ = _search_best_norm_gemv2_vl_ks(
             hidden,
             norm_weight,
@@ -236,6 +336,7 @@ def test_norm_gemv2_matches_three_paths() -> None:
 
         combined_weight = torch.cat([weight0_fp8, weight1_fp8], dim=0)
         combined_scale = torch.tensor([scale0.item(), scale1.item()], dtype=torch.float32, device=DEVICE)
+        combined_vl, combined_ks, _ = _search_best_combined_vl_ks(hidden, combined_weight, combined_scale, EPS)
         combined_output = torch.empty(1, n0, dtype=torch.float16, device=DEVICE)
         combined_normed = torch.empty_like(hidden)
         esimd_rms_norm(hidden, norm_weight, EPS, combined_normed, 256, 1)
@@ -244,12 +345,15 @@ def test_norm_gemv2_matches_three_paths() -> None:
             combined_weight,
             combined_scale,
             combined_output,
+            combined_vl,
+            combined_ks,
         )
 
-        rms_vl, rms_ks = _select_rms_norm_vl_ks(hidden.shape[0], k_size)
+        rms_vl, rms_ks, _ = _search_best_rms_vl_ks(hidden, norm_weight, EPS)
         normed = torch.empty_like(hidden)
         esimd_rms_norm(hidden, norm_weight, EPS, normed, rms_vl, rms_ks)
 
+        total_n = n0 + n1
         split_out0 = torch.empty(1, n0, dtype=torch.float16, device=DEVICE)
         split_out1 = torch.empty(1, n1, dtype=torch.float16, device=DEVICE)
         split_logits = torch.empty(1, total_n, dtype=torch.float16, device=DEVICE)
@@ -315,8 +419,13 @@ def benchmark_norm_gemv2_three_paths() -> None:
             scale1,
             EPS,
         )
-        combined_vl, combined_ks = _select_norm_gemv_vl_ks(total_n, k_size)
-        rms_vl, rms_ks = _select_rms_norm_vl_ks(hidden.shape[0], k_size)
+        combined_vl, combined_ks, _ = _search_best_combined_vl_ks(
+            hidden,
+            combined_weight_pool[0],
+            combined_scale,
+            EPS,
+        )
+        rms_vl, rms_ks, _ = _search_best_rms_vl_ks(hidden, norm_weight, EPS)
 
         fused_output = torch.empty(1, n0, dtype=torch.float16, device=DEVICE)
         combined_output = torch.empty(1, n0, dtype=torch.float16, device=DEVICE)
@@ -351,6 +460,8 @@ def benchmark_norm_gemv2_three_paths() -> None:
                 combined_weight_pool[current_idx],
                 combined_scale,
                 combined_output,
+                combined_vl,
+                combined_ks,
             )
             run_state["index"] += 1
 

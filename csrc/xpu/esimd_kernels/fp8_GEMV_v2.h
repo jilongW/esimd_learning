@@ -37,6 +37,31 @@ SYCL_ESIMD_FUNCTION inline simd<float, VL> fp8_dequant(
     return simd<float, VL>(wh);
 }
 
+template<int FP8_MODE, int VL>
+SYCL_ESIMD_FUNCTION inline simd<float, VL> fp8_dequant_mode(
+    simd<uint8_t, VL> raw) {
+    simd<uint16_t, VL> u16 = convert<uint16_t>(raw);
+    simd<uint16_t, VL> fp8_sign = (u16 >> 7) & 1;
+    simd<uint16_t, VL> fp16_bits;
+
+    if constexpr (FP8_MODE == 0) {
+        // E4M3: 4-bit exp (bias 7), 3-bit mant
+        simd<uint16_t, VL> fp8_exp  = (u16 >> 3) & 0xF;
+        simd<uint16_t, VL> fp8_mant = u16 & 0x7;
+        fp16_bits = (fp8_sign << 15) | ((fp8_exp + 8) << 10) | (fp8_mant << 7);
+        fp16_bits.merge(fp8_sign << 15, fp8_exp == 0);
+    } else {
+        // E5M2: 5-bit exp (bias 15), 2-bit mant
+        simd<uint16_t, VL> fp8_exp  = (u16 >> 2) & 0x1F;
+        simd<uint16_t, VL> fp8_mant = u16 & 0x3;
+        fp16_bits = (fp8_sign << 15) | (fp8_exp << 10) | (fp8_mant << 8);
+        fp16_bits.merge(fp8_sign << 15, fp8_exp == 0);
+    }
+
+    simd<fp16, VL> wh = fp16_bits.template bit_cast_view<fp16>().read();
+    return simd<float, VL>(wh);
+}
+
 // ============================================================================
 // Per-N scale (pern): scale is fp16[N]
 // ============================================================================
@@ -349,15 +374,13 @@ inline void GEMV_fp8_pern_fused_host(
 // Per-tensor scale (pert): scale is a single float per matrix
 // ============================================================================
 
-template<typename InputT, typename OutputT, int VL, int K_SPLIT>
+template<typename InputT, typename OutputT, int VL, int K_SPLIT, int FP8_MODE>
 struct GEMV_fp8_pert_kernel {
     const InputT*  input;
     const uint8_t* weight;
     const float*   scale_ptr;  // device pointer — no host sync
     OutputT*       output;
     int N, K;
-    int fp8_mode;
-
     void operator()(sycl::nd_item<1> item) const SYCL_ESIMD_KERNEL {
         if constexpr (K_SPLIT > 1) {
             slm_init<K_SPLIT * sizeof(float)>();
@@ -377,21 +400,23 @@ struct GEMV_fp8_pert_kernel {
             simd<float, VL> input_f = iv;
 
             simd<uint8_t, VL> raw = block_load<uint8_t, VL>(weight + (size_t)n * K + k);
-            simd<float, VL> wf = fp8_dequant<VL>(raw, fp8_mode);
+            simd<float, VL> wf = fp8_dequant_mode<FP8_MODE, VL>(raw);
 
             acc += input_f * wf;
         }
 
-        float my_sum = reduce<float>(acc, std::plus<>()) * *scale_ptr;
+        float my_sum = reduce<float>(acc, std::plus<>());
 
         if constexpr (K_SPLIT == 1) {
-            output[n] = OutputT(my_sum);
+            float scale = *scale_ptr;
+            output[n] = OutputT(my_sum * scale);
         } else {
             slm_block_store<float, 1>(lid * sizeof(float), simd<float, 1>(my_sum));
             barrier();
             if (lid == 0) {
+                float scale = *scale_ptr;
                 simd<float, K_SPLIT> parts = slm_block_load<float, K_SPLIT>(0);
-                output[n] = OutputT(reduce<float>(parts, std::plus<>()));
+                output[n] = OutputT(reduce<float>(parts, std::plus<>()) * scale);
             }
         }
     }
@@ -418,26 +443,34 @@ inline void GEMV_fp8_pert_host_impl(
     int global = N * ks;
     int local  = ks;
 
-    #define LAUNCH_PERT(V, S) \
+    #define LAUNCH_PERT_MODE(V, S, M) \
         q.submit([&](sycl::handler& h) { \
             h.parallel_for(sycl::nd_range<1>(global, local), \
-                GEMV_fp8_pert_kernel<InputT, OutputT, V, S>{p_in, p_w, p_sc, p_out, (int)N, (int)K, fp8_mode}); \
+                GEMV_fp8_pert_kernel<InputT, OutputT, V, S, M>{p_in, p_w, p_sc, p_out, (int)N, (int)K}); \
         });
 
-    if (vl == 512 && ks == 1) { LAUNCH_PERT(512, 1) }
-    else if (vl == 512 && ks == 2) { LAUNCH_PERT(512, 2) }
-    else if (vl == 256 && ks == 1) { LAUNCH_PERT(256, 1) }
-    else if (vl == 256 && ks == 2) { LAUNCH_PERT(256, 2) }
-    else if (vl == 256 && ks == 4) { LAUNCH_PERT(256, 4) }
-    else if (vl == 256 && ks == 8) { LAUNCH_PERT(256, 8) }
-    else if (vl == 128 && ks == 1) { LAUNCH_PERT(128, 1) }
-    else if (vl == 128 && ks == 2) { LAUNCH_PERT(128, 2) }
-    else if (vl == 128 && ks == 4) { LAUNCH_PERT(128, 4) }
-    else if (vl == 128 && ks == 8) { LAUNCH_PERT(128, 8) }
-    else if (vl == 128 && ks == 10) { LAUNCH_PERT(128, 10) }
-    else { LAUNCH_PERT(128, 1) }
+    #define LAUNCH_PERT_SET(M) \
+        if (vl == 512 && ks == 1) { LAUNCH_PERT_MODE(512, 1, M) } \
+        else if (vl == 512 && ks == 2) { LAUNCH_PERT_MODE(512, 2, M) } \
+        else if (vl == 256 && ks == 1) { LAUNCH_PERT_MODE(256, 1, M) } \
+        else if (vl == 256 && ks == 2) { LAUNCH_PERT_MODE(256, 2, M) } \
+        else if (vl == 256 && ks == 4) { LAUNCH_PERT_MODE(256, 4, M) } \
+        else if (vl == 256 && ks == 8) { LAUNCH_PERT_MODE(256, 8, M) } \
+        else if (vl == 128 && ks == 1) { LAUNCH_PERT_MODE(128, 1, M) } \
+        else if (vl == 128 && ks == 2) { LAUNCH_PERT_MODE(128, 2, M) } \
+        else if (vl == 128 && ks == 4) { LAUNCH_PERT_MODE(128, 4, M) } \
+        else if (vl == 128 && ks == 8) { LAUNCH_PERT_MODE(128, 8, M) } \
+        else if (vl == 128 && ks == 10) { LAUNCH_PERT_MODE(128, 10, M) } \
+        else { LAUNCH_PERT_MODE(128, 1, M) }
 
-    #undef LAUNCH_PERT
+    if (fp8_mode == 0) {
+        LAUNCH_PERT_SET(0)
+    } else {
+        LAUNCH_PERT_SET(1)
+    }
+
+    #undef LAUNCH_PERT_SET
+    #undef LAUNCH_PERT_MODE
 }
 
 inline void GEMV_fp8_pert_host(
@@ -492,7 +525,7 @@ inline void GEMV_fp8_pert_host(
 // Fused per-tensor scale
 // ============================================================================
 
-template<int VL, int K_SPLIT, int GEMV_COUNT>
+template<int VL, int K_SPLIT, int GEMV_COUNT, int FP8_MODE>
 struct GEMV_fp8_pert_fused_kernel {
     const fp16*    input;
     const uint8_t* weights[GEMV_COUNT];
@@ -501,8 +534,6 @@ struct GEMV_fp8_pert_fused_kernel {
     int            N[GEMV_COUNT];
     int            N_cumsum[GEMV_COUNT];
     int            K;
-    int            fp8_mode;
-
     void operator()(sycl::nd_item<1> item) const SYCL_ESIMD_KERNEL {
         if constexpr (K_SPLIT > 1) {
             slm_init<K_SPLIT * sizeof(float)>();
@@ -537,21 +568,21 @@ struct GEMV_fp8_pert_fused_kernel {
             simd<float, VL> input_f = iv;
 
             simd<uint8_t, VL> raw = block_load<uint8_t, VL>(w_ptr + (size_t)n * K + k);
-            simd<float, VL> wf = fp8_dequant<VL>(raw, fp8_mode);
+            simd<float, VL> wf = fp8_dequant_mode<FP8_MODE, VL>(raw);
 
             acc += input_f * wf;
         }
 
-        float my_sum = reduce<float>(acc, std::plus<>()) * s_val;
+        float my_sum = reduce<float>(acc, std::plus<>());
 
         if constexpr (K_SPLIT == 1) {
-            o_ptr[n] = fp16(my_sum);
+            o_ptr[n] = fp16(my_sum * s_val);
         } else {
             slm_block_store<float, 1>(lid * sizeof(float), simd<float, 1>(my_sum));
             barrier();
             if (lid == 0) {
                 simd<float, K_SPLIT> parts = slm_block_load<float, K_SPLIT>(0);
-                o_ptr[n] = fp16(reduce<float>(parts, std::plus<>()));
+                o_ptr[n] = fp16(reduce<float>(parts, std::plus<>()) * s_val);
             }
         }
     }
@@ -579,12 +610,11 @@ inline void GEMV_fp8_pert_fused_host(
     int global = total_N * ks;
     int local  = ks;
 
-    #define LAUNCH_PERT_FUSED(V, S) \
+    #define LAUNCH_PERT_FUSED_MODE(V, S, M) \
         q.submit([&](sycl::handler& h) { \
-            GEMV_fp8_pert_fused_kernel<V, S, GEMV_COUNT> kern; \
+            GEMV_fp8_pert_fused_kernel<V, S, GEMV_COUNT, M> kern; \
             kern.input = p_in; \
             kern.K = (int)K; \
-            kern.fp8_mode = fp8_mode; \
             uint32_t cum = 0; \
             for (int i = 0; i < GEMV_COUNT; i++) { \
                 kern.weights[i] = reinterpret_cast<const uint8_t*>(weight_ptrs[i]); \
@@ -596,18 +626,27 @@ inline void GEMV_fp8_pert_fused_host(
             } \
             h.parallel_for(sycl::nd_range<1>(global, local), kern); \
         });
-    if (vl == 512 && ks == 1) { LAUNCH_PERT_FUSED(512, 1) }
-    else if (vl == 512 && ks == 2) { LAUNCH_PERT_FUSED(512, 2) }
-    else if (vl == 256 && ks == 1) { LAUNCH_PERT_FUSED(256, 1) }
-    else if (vl == 256 && ks == 2) { LAUNCH_PERT_FUSED(256, 2) }
-    else if (vl == 256 && ks == 4) { LAUNCH_PERT_FUSED(256, 4) }
-    else if (vl == 256 && ks == 8) { LAUNCH_PERT_FUSED(256, 8) }
-    else if (vl == 128 && ks == 1) { LAUNCH_PERT_FUSED(128, 1) }
-    else if (vl == 128 && ks == 2) { LAUNCH_PERT_FUSED(128, 2) }
-    else if (vl == 128 && ks == 4) { LAUNCH_PERT_FUSED(128, 4) }
-    else if (vl == 128 && ks == 8) { LAUNCH_PERT_FUSED(128, 8) }
-    else if (vl == 128 && ks == 10) { LAUNCH_PERT_FUSED(128, 10) }
-    else { LAUNCH_PERT_FUSED(128, 1) }
 
-    #undef LAUNCH_PERT_FUSED
+    #define LAUNCH_PERT_FUSED_SET(M) \
+        if (vl == 512 && ks == 1) { LAUNCH_PERT_FUSED_MODE(512, 1, M) } \
+        else if (vl == 512 && ks == 2) { LAUNCH_PERT_FUSED_MODE(512, 2, M) } \
+        else if (vl == 256 && ks == 1) { LAUNCH_PERT_FUSED_MODE(256, 1, M) } \
+        else if (vl == 256 && ks == 2) { LAUNCH_PERT_FUSED_MODE(256, 2, M) } \
+        else if (vl == 256 && ks == 4) { LAUNCH_PERT_FUSED_MODE(256, 4, M) } \
+        else if (vl == 256 && ks == 8) { LAUNCH_PERT_FUSED_MODE(256, 8, M) } \
+        else if (vl == 128 && ks == 1) { LAUNCH_PERT_FUSED_MODE(128, 1, M) } \
+        else if (vl == 128 && ks == 2) { LAUNCH_PERT_FUSED_MODE(128, 2, M) } \
+        else if (vl == 128 && ks == 4) { LAUNCH_PERT_FUSED_MODE(128, 4, M) } \
+        else if (vl == 128 && ks == 8) { LAUNCH_PERT_FUSED_MODE(128, 8, M) } \
+        else if (vl == 128 && ks == 10) { LAUNCH_PERT_FUSED_MODE(128, 10, M) } \
+        else { LAUNCH_PERT_FUSED_MODE(128, 1, M) }
+
+    if (fp8_mode == 0) {
+        LAUNCH_PERT_FUSED_SET(0)
+    } else {
+        LAUNCH_PERT_FUSED_SET(1)
+    }
+
+    #undef LAUNCH_PERT_FUSED_SET
+    #undef LAUNCH_PERT_FUSED_MODE
 }

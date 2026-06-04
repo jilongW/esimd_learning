@@ -31,6 +31,10 @@ at::Tensor esimd_rms_norm(
     at::Tensor hidden_states, at::Tensor weight,
     double eps, at::Tensor output, int64_t vl, int64_t ks);
 
+at::Tensor esimd_rms_norm_res(
+    at::Tensor hidden_states, at::Tensor res, at::Tensor weight,
+    double eps, at::Tensor output, int64_t vl, int64_t ks);
+
 at::Tensor esimd_norm_gemv_fp8_pert(
     at::Tensor hidden_states, at::Tensor norm_weight,
     at::Tensor gemv_weight, at::Tensor gemv_scale,
@@ -40,6 +44,11 @@ at::Tensor esimd_gemv_gelu_tanh_mul_fp8_pert(
     at::Tensor hidden_states,
     at::Tensor gemv_weight, at::Tensor gemv_scale,
     at::Tensor output, int64_t vl, int64_t ks);
+
+at::Tensor esimd_gemv_gelu_tanh_mul_y_fp8_pert(
+    at::Tensor hidden_states,
+    at::Tensor gemv_weight, at::Tensor gemv_scale,
+    at::Tensor per_layer_input, at::Tensor output, int64_t vl, int64_t ks);
 
 at::Tensor esimd_gelu_tanh_and_mul(
     at::Tensor input,
@@ -71,3 +80,13 @@ at::Tensor esimd_resadd_norm_gemv_fp8_pert(
     at::Tensor hidden_states, at::Tensor residual, at::Tensor norm_weight,
     at::Tensor gemv_weight, at::Tensor gemv_scale, at::Tensor output, at::Tensor normed_out,
     double eps);
+
+
+at::Tensor esimd_qkv_split_norm_rope_gemma(
+    at::Tensor qkv_state,
+    at::Tensor q_out,
+    at::Tensor k_out, at::Tensor v_out,
+    at::Tensor norm_wq, at::Tensor norm_wk,
+    at::Tensor positions,
+    int64_t q_heads, int64_t kv_heads,
+    int64_t rotary_dim, bool isKvSharedLayer, at::Tensor cos_sin_cache);

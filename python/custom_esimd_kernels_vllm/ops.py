@@ -91,8 +91,8 @@ def esimd_rms_norm(
     weight: torch.Tensor,
     eps: float,
     output: torch.Tensor,
-    vl: int,
-    ks: int,
+    vl: int | None = None,
+    ks: int | None = None,
 ) -> torch.Tensor:
     """Batched RMSNorm.
 
@@ -102,7 +102,35 @@ def esimd_rms_norm(
     vl: vector length candidate, one of 128, 256, 512, 1024.
     ks: per-row thread split, one of 1, 2, 5, 8, 10.
     """
+    if (vl is None) != (ks is None):
+        raise ValueError("vl and ks must both be provided or both be omitted")
+    if vl is None and ks is None:
+        vl, ks = 0, 0
     return _ops.esimd_rms_norm(hidden_states, weight, eps, output, vl, ks)
+
+def esimd_rms_norm_res(
+    hidden_states: torch.Tensor,
+    res: torch.Tensor,
+    weight: torch.Tensor,
+    eps: float,
+    output: torch.Tensor,
+    vl: int | None = None,
+    ks: int | None = None,
+) -> torch.Tensor:
+    """Batched RMSNorm_Res.
+
+    hidden_states: [..., K] fp16 or bf16, where K is a multiple of 128.
+    res: [..., K] fp16 or bf16, where K is a multiple of 128.
+    weight: [K] with the same dtype as hidden_states.
+    output: preallocated output tensor with the same shape and dtype as hidden_states.
+    vl: vector length candidate, one of 128, 256, 512, 1024.
+    ks: per-row thread split, one of 1, 2, 5, 8, 10.
+    """
+    if (vl is None) != (ks is None):
+        raise ValueError("vl and ks must both be provided or both be omitted")
+    if vl is None and ks is None:
+        vl, ks = 0, 0
+    return _ops.esimd_rms_norm_res(hidden_states, res, weight, eps, output, vl, ks)
 
 
 def esimd_norm_gemv_fp8_pert(
@@ -138,7 +166,6 @@ def esimd_norm_gemv_fp8_pert(
         ks,
     )
 
-
 def esimd_gemv_gelu_tanh_mul_fp8_pert(
     hidden_states: torch.Tensor,
     gemv_weight: torch.Tensor,
@@ -166,6 +193,31 @@ def esimd_gemv_gelu_tanh_mul_fp8_pert(
         ks,
     )
 
+def esimd_gemv_gelu_tanh_mul_y_fp8_pert(
+    hidden_states: torch.Tensor,
+    gemv_weight: torch.Tensor,
+    gemv_scale: torch.Tensor,
+    per_layer_input: torch.Tensor,
+    output: torch.Tensor,
+    vl: int | None = None,
+    ks: int | None = None,
+) -> torch.Tensor:
+    """Fused FP8 GEMV + GeGLU (GELU(tanh)) + MUL.
+    """
+    if (vl is None) != (ks is None):
+        raise ValueError("vl and ks must both be provided or both be omitted")
+    if vl is None and ks is None:
+        vl, ks = 0, 0
+
+    return _ops.esimd_gemv_gelu_tanh_mul_y_fp8_pert(
+        hidden_states,
+        gemv_weight,
+        gemv_scale,
+        per_layer_input,
+        output,
+        vl,
+        ks,
+    )
 
 def esimd_norm_gemv2_geglu_fp8_pert(
     hidden_states: torch.Tensor,
@@ -329,3 +381,34 @@ def esimd_resadd_norm_gemv_fp8_pert(
     return _ops.esimd_resadd_norm_gemv_fp8_pert(
         hidden_states, residual, norm_weight,
         gemv_weight, gemv_scale, output, normed_out, eps)
+
+def esimd_qkv_split_norm_rope_gemma(
+    qkv_state: torch.Tensor,
+    q_out: torch.Tensor,
+    k_out: torch.Tensor,
+    v_out: torch.Tensor,
+    norm_wq: torch.Tensor,
+    norm_wk: torch.Tensor,
+    positions: torch.Tensor,
+    q_heads: int,
+    kv_heads: int,
+    rotary_dim: int = 256,
+    isKvSharedLayer: bool = False,
+    cos_sin_cache: torch.Tensor = None,
+) -> torch.Tensor:
+    """Fused QKV Split + RMSNorm(weight, eps=1e-6) + RoPE.
+
+    qkv_state:     [nTokens, hiddenDim] fp16 — packed QKV projection output
+    q_out:         [nTokens, qHead*headDim] fp16
+    k_out:         [nTokens, kvHead*headDim] fp16
+    v_out:         [nTokens, kvHead*headDim] fp16
+    norm_wq/wk:    [headDim] fp16 — RMSNorm weights (Gemma4 weight convention)
+    positions:     [nTokens] int32 — RoPE position indices
+    rotary_dim:    number of dimensions to apply RoPE.
+    cos_sin_cache: [max_pos, rotary_dim] fp16 — from rotary_emb.cos_sin_cache.
+                   Layout: [cos(rotary_dim/2), sin(rotary_dim/2)] per row.
+    """
+    return _ops.esimd_qkv_split_norm_rope_gemma(
+        qkv_state, q_out, k_out, v_out,
+        norm_wq, norm_wk, positions,
+        q_heads, kv_heads, rotary_dim, isKvSharedLayer, cos_sin_cache)
