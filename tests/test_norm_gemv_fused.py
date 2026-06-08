@@ -207,7 +207,6 @@ def test_norm_gemv_fp8_pert_correctness():
         weight_fp8 = weight_fp16.to(torch.float8_e4m3fn)
         scale = torch.tensor([0.0008], dtype=torch.float32, device=DEVICE)
         output = torch.empty(1, n_size, dtype=torch.float16, device=DEVICE)
-        vl, ks = _select_norm_gemv_vl_ks(n_size, k_size)
 
         esimd_norm_gemv_fp8_pert(
             hidden,
@@ -215,9 +214,7 @@ def test_norm_gemv_fp8_pert_correctness():
             weight_fp8,
             scale,
             output,
-            EPS,
-            vl,
-            ks,
+            EPS
         )
         torch.xpu.synchronize()
 
@@ -238,7 +235,7 @@ def benchmark_norm_gemv_fp8_pert_vs_split():
     torch.manual_seed(42)
     best_cfgs = {}
     scale_name = "two_scale"
-    scale = torch.tensor([0.0008, 0.0008], dtype=torch.float32, device=DEVICE)
+    scale = torch.tensor([0.0008], dtype=torch.float32, device=DEVICE)
 
     print(
         f"\n{'Shape':<20} {'N':>6} {'K':>6} | {'Scale':>9} {'Mode':>6} {'Config':>11} {'GB/s':>8} {'BW%':>7} {'us':>8} {'F/S':>8} {'S/F':>8}"

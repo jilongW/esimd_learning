@@ -73,7 +73,7 @@ at::Tensor esimd_norm_gemv2_geglu_fp8_pert(
 // Auto-dispatches: M<=3 → batched GEMV, M>=2 E4M3 → DPAS V9, else → WS
 at::Tensor esimd_gemm_fp8_pert(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
-    at::Tensor output);
+    at::Tensor output, int64_t vl, int64_t ks);
 
 // Fused ResidualAdd + RMSNorm + FP8 GEMV
 at::Tensor esimd_resadd_norm_gemv_fp8_pert(

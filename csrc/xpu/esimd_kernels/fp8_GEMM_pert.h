@@ -84,7 +84,7 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
     }
 
     if (K >= 10240){
-        vl=256; ks=4;
+        vl=256; ks=5;
     } else if (K >= 2560) {
         vl = 128; ks = 10;
     } else if (K >= 2048) {
@@ -3842,11 +3842,10 @@ inline void batched_gemv_fp8_pert_host(
     const float*   scale_ptr,
     io_t*          output,
     uint32_t M, uint32_t N, uint32_t K,
+    int vl,
+    int ks,
     int fp8_mode,
     sycl::queue& q) {
-
-    int vl, ks;
-    select_vl_ks(N, K, vl, ks);
 
     int global0 = N * ks;
     int global1 = M;
@@ -3863,19 +3862,56 @@ inline void batched_gemv_fp8_pert_host(
                     (int)M, (int)N, (int)K, fp8_mode}); \
         });
 
+    // Explicit dispatch for common GEMV tuning grids.
+    // Primary support: vl={64,128,256,512} x ks={1,2,4,5}.
+    // Keep legacy ks={8,10} paths for backward compatibility.
     if      (vl == 512 && ks == 1) { LAUNCH_BATCHED(512, 1) }
     else if (vl == 512 && ks == 2) { LAUNCH_BATCHED(512, 2) }
+    else if (vl == 512 && ks == 4) { LAUNCH_BATCHED(512, 4) }
+    else if (vl == 512 && ks == 5) { LAUNCH_BATCHED(512, 5) }
+    else if (vl == 512 && ks == 8) { LAUNCH_BATCHED(512, 8) }
+    else if (vl == 512 && ks == 10) { LAUNCH_BATCHED(512, 10) }
+
     else if (vl == 256 && ks == 1) { LAUNCH_BATCHED(256, 1) }
     else if (vl == 256 && ks == 2) { LAUNCH_BATCHED(256, 2) }
     else if (vl == 256 && ks == 4) { LAUNCH_BATCHED(256, 4) }
+    else if (vl == 256 && ks == 5) { LAUNCH_BATCHED(256, 5) }
+    else if (vl == 256 && ks == 8) { LAUNCH_BATCHED(256, 8) }
+    else if (vl == 256 && ks == 10) { LAUNCH_BATCHED(256, 10) }
+
     else if (vl == 128 && ks == 1) { LAUNCH_BATCHED(128, 1) }
     else if (vl == 128 && ks == 2) { LAUNCH_BATCHED(128, 2) }
     else if (vl == 128 && ks == 4) { LAUNCH_BATCHED(128, 4) }
+    else if (vl == 128 && ks == 5) { LAUNCH_BATCHED(128, 5) }
     else if (vl == 128 && ks == 8) { LAUNCH_BATCHED(128, 8) }
     else if (vl == 128 && ks == 10) { LAUNCH_BATCHED(128, 10) }
+
+    else if (vl == 64 && ks == 1) { LAUNCH_BATCHED(64, 1) }
+    else if (vl == 64 && ks == 2) { LAUNCH_BATCHED(64, 2) }
+    else if (vl == 64 && ks == 4) { LAUNCH_BATCHED(64, 4) }
+    else if (vl == 64 && ks == 5) { LAUNCH_BATCHED(64, 5) }
+    else if (vl == 64 && ks == 8) { LAUNCH_BATCHED(64, 8) }
+    else if (vl == 64 && ks == 10) { LAUNCH_BATCHED(64, 10) }
+
     else                           { LAUNCH_BATCHED(128, 1) }
 
     #undef LAUNCH_BATCHED
+}
+
+template<typename io_t>
+inline void batched_gemv_fp8_pert_host(
+    const io_t*    input,
+    const uint8_t* weight,
+    const float*   scale_ptr,
+    io_t*          output,
+    uint32_t M, uint32_t N, uint32_t K,
+    int fp8_mode,
+    sycl::queue& q) {
+
+    int vl, ks;
+    select_vl_ks(N, K, vl, ks);
+    batched_gemv_fp8_pert_host<io_t>(
+        input, weight, scale_ptr, output, M, N, K, vl, ks, fp8_mode, q);
 }
 
 // Regime B/C dispatcher: weight-stationary GEMM
@@ -4080,11 +4116,15 @@ inline void GEMM_fp8_pert_dispatch(
     const float*   scale_ptr,
     io_t*          output,
     uint32_t M, uint32_t N, uint32_t K,
+    int vl,
+    int ks,
     int fp8_mode,
     sycl::queue& q) {
 
     if (M == 1) {
-        batched_gemv_fp8_pert_host<io_t>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
+        // Explicit VL/KS only applies to the GEMV path (M==1).
+        batched_gemv_fp8_pert_host<io_t>(
+            input, weight, scale_ptr, output, M, N, K, vl, ks, fp8_mode, q);
     } else if (N <= 16 && M >= 2) {
         // Tiny-N M-parallel: one WG per input row, K_SPLIT threads per WG.
         // Grid={M×K_SPLIT}. Weight (N*K bytes) in L3. Avoids N-parallel
@@ -4131,4 +4171,24 @@ inline void GEMM_fp8_pert_dispatch(
     } else {
         ws_gemm_fp8_pert_host<fp16, 128, 16>(input, weight, scale_ptr, output, M, N, K, fp8_mode, q);
     }
+}
+
+// Backward-compatible overload: keeps current auto VL/KS behavior.
+template<typename io_t>
+inline void GEMM_fp8_pert_dispatch(
+    const io_t*    input,
+    const uint8_t* weight,
+    const float*   scale_ptr,
+    io_t*          output,
+    uint32_t M, uint32_t N, uint32_t K,
+    int fp8_mode,
+    sycl::queue& q) {
+
+    int vl = 0;
+    int ks = 0;
+    if (M == 1) {
+        select_vl_ks(N, K, vl, ks);
+    }
+    GEMM_fp8_pert_dispatch<io_t>(
+        input, weight, scale_ptr, output, M, N, K, vl, ks, fp8_mode, q);
 }

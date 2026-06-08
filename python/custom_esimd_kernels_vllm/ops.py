@@ -346,7 +346,8 @@ def esimd_gelu_tanh_and_mul(
 
 def esimd_gemm_fp8_pert(
     input: torch.Tensor, weight: torch.Tensor, weight_scale: torch.Tensor,
-    output: torch.Tensor,
+    output: torch.Tensor,vl: int | None = None,
+    ks: int | None = None,
 ) -> torch.Tensor:
     """FP8 GEMM with per-tensor scale — handles any M (auto-dispatches).
 
@@ -358,12 +359,13 @@ def esimd_gemm_fp8_pert(
       M=1-3  → batched GEMV (BW-bound, K-split SLM reduction)
       M>=2   → DPAS V9 (E4M3, K%64==0) or DPAS V7 (E5M2) or WS fallback
     """
+    if vl is None and ks is None:
+        vl, ks = 0, 0
     return _ops.esimd_gemm_fp8_pert(
         input,
         weight,
         weight_scale,
-        output,
-    )
+        output, vl, ks)
 
 def esimd_resadd_norm_gemv_fp8_pert(
     hidden_states: torch.Tensor,

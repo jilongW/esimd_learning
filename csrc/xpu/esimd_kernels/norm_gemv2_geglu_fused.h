@@ -215,6 +215,8 @@ struct NormGEMV2_fp8_pert_kernel {
         int k_per_thread = K / K_SPLIT;
         int k_start = lid * k_per_thread;
         int n_chunks = k_per_thread / VL;
+        const uint8_t* w0_row = w0_ptr + (size_t)gid * K;
+        const uint8_t* w1_row = w1_ptr + (size_t)gid * K;
 
         // Pass 1: compute sum_sq for RMS
         float sum_sq = 0.0f;
@@ -250,32 +252,53 @@ struct NormGEMV2_fp8_pert_kernel {
             inv_rms = slm_block_load<float, 1>(kInvRmsSlmOffset)[0];
         }
 
-        // Pass 2: re-load hidden_states once, normalize once, feed both GEMVs.
+        // Pass 2: accumulate h*nw*w first, then apply inv_rms once after reduce.
+        // This removes one vector multiply from the hot loop.
         simd<float, VL> acc0 = 0.0f;
         simd<float, VL> acc1 = 0.0f;
-        for (int c = 0; c < n_chunks; c++) {
-            int offset = k_start + c * VL;
+        if (fp8_mode == 0) {
+            for (int c = 0; c < n_chunks; c++) {
+                int offset = k_start + c * VL;
 
-            simd<float, VL> h = block_load<fp16, VL>(hidden_ptr + offset);
-            simd<float, VL> nw = block_load<fp16, VL>(norm_w_ptr + offset);
-            simd<float, VL> normed = h * inv_rms * nw;
+                simd<float, VL> h = block_load<fp16, VL>(hidden_ptr + offset);
+                simd<float, VL> nw = block_load<fp16, VL>(norm_w_ptr + offset);
+                simd<float, VL> hn = h * nw;
 
-            simd<uint8_t, VL> w0_raw = block_load<uint8_t, VL>(
-                w0_ptr + (size_t)gid * K + offset);
-            simd<float, VL> w0_f = fp8_dequant_rng2<VL>(w0_raw, fp8_mode);
-            acc0 += normed * w0_f;
+                simd<uint8_t, VL> w0_raw = block_load<uint8_t, VL>(w0_row + offset);
+                simd<float, VL> w0_f = fp8_dequant_rng2_mode<VL, 0>(w0_raw);
+                acc0 += hn * w0_f;
 
-            simd<uint8_t, VL> w1_raw = block_load<uint8_t, VL>(
-                w1_ptr + (size_t)gid * K + offset);
-            simd<float, VL> w1_f = fp8_dequant_rng2<VL>(w1_raw, fp8_mode);
-            acc1 += normed * w1_f;
+                simd<uint8_t, VL> w1_raw = block_load<uint8_t, VL>(w1_row + offset);
+                simd<float, VL> w1_f = fp8_dequant_rng2_mode<VL, 0>(w1_raw);
+                acc1 += hn * w1_f;
+            }
+        } else {
+            for (int c = 0; c < n_chunks; c++) {
+                int offset = k_start + c * VL;
+
+                simd<float, VL> h = block_load<fp16, VL>(hidden_ptr + offset);
+                simd<float, VL> nw = block_load<fp16, VL>(norm_w_ptr + offset);
+                simd<float, VL> hn = h * nw;
+
+                simd<uint8_t, VL> w0_raw = block_load<uint8_t, VL>(w0_row + offset);
+                simd<float, VL> w0_f = fp8_dequant_rng2_mode<VL, 1>(w0_raw);
+                acc0 += hn * w0_f;
+
+                simd<uint8_t, VL> w1_raw = block_load<uint8_t, VL>(w1_row + offset);
+                simd<float, VL> w1_f = fp8_dequant_rng2_mode<VL, 1>(w1_raw);
+                acc1 += hn * w1_f;
+            }
         }
 
-        float my_sum0 = reduce<float>(acc0, std::plus<>()) * *s0_ptr;
-        float my_sum1 = reduce<float>(acc1, std::plus<>()) * *s1_ptr;
+        float my_sum0 = reduce<float>(acc0, std::plus<>());
+        float my_sum1 = reduce<float>(acc1, std::plus<>());
+        float s0 = *s0_ptr;
+        float s1 = *s1_ptr;
 
         if constexpr (K_SPLIT == 1) {
-            float gated = gelu_tanh_scalar(my_sum0) * my_sum1;
+            float first = my_sum0 * inv_rms * s0;
+            float second = my_sum1 * inv_rms * s1;
+            float gated = gelu_tanh_scalar(first) * second;
             out_ptr[gid] = fp16(gated);
         } else {
             constexpr int kInvRmsSlmOffset = K_SPLIT * sizeof(float);
@@ -290,7 +313,10 @@ struct NormGEMV2_fp8_pert_kernel {
                 simd<float, K_SPLIT> parts1 = slm_block_load<float, K_SPLIT>(kOutput1SlmOffset);
                 float sum0 = reduce<float>(parts0, std::plus<>());
                 float sum1 = reduce<float>(parts1, std::plus<>());
-                float gated = gelu_tanh_scalar(sum0) * sum1;
+                float inv = slm_block_load<float, 1>(kInvRmsSlmOffset)[0];
+                float first = sum0 * inv * s0;
+                float second = sum1 * inv * s1;
+                float gated = gelu_tanh_scalar(first) * second;
                 out_ptr[gid] = fp16(gated);
             }
         }

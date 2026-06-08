@@ -9,7 +9,7 @@ TORCH_LIBRARY_FRAGMENT(custom_esimd_kernels_vllm, m) {
   // FP8 GEMM per-tensor scale: input [M, K] fp16, weight [N, K] fp8, output [M, N] fp16
   // Auto-dispatches based on M: GEMV for M<=3, DPAS for M>=2 (E4M3), WS fallback
   m.def("esimd_gemm_fp8_pert(Tensor input, Tensor weight, Tensor weight_scale, "
-        "Tensor output) -> Tensor");
+        "Tensor output, int vl, int ks) -> Tensor");
   m.impl("esimd_gemm_fp8_pert", torch::kXPU, &esimd_gemm_fp8_pert);
 }
 

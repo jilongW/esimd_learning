@@ -1,0 +1,98 @@
+Remote version of pip: 26.1.2
+Local version of pip:  26.1.1
+Was pip installed by pip? False
+Using pip 26.1.1 from /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip (python 3.12)
+Non-user install because site-packages writeable
+Created temporary directory: /tmp/pip-build-tracker-59upztg6
+Initialized build tracking at /tmp/pip-build-tracker-59upztg6
+Created build tracker: /tmp/pip-build-tracker-59upztg6
+Entered build tracker: /tmp/pip-build-tracker-59upztg6
+Created temporary directory: /tmp/pip-install-bbrto4o0
+Created temporary directory: /tmp/pip-ephem-wheel-cache-m9gi9r0g
+Obtaining file:///home/edgeai/esimd_learning
+  Added file:///home/edgeai/esimd_learning to build tracker '/tmp/pip-build-tracker-59upztg6'
+  Checking if build backend supports build_editable: started
+  Running command Checking if build backend supports build_editable
+  Checking if build backend supports build_editable: finished with status 'done'
+  Created temporary directory: /tmp/pip-modern-metadata-0fpa7vsc
+  Preparing editable metadata (pyproject.toml): started
+  Running command Preparing editable metadata (pyproject.toml)
+  running dist_info
+  creating /tmp/pip-modern-metadata-0fpa7vsc/custom_esimd_kernels_vllm.egg-info
+  writing /tmp/pip-modern-metadata-0fpa7vsc/custom_esimd_kernels_vllm.egg-info/PKG-INFO
+  writing dependency_links to /tmp/pip-modern-metadata-0fpa7vsc/custom_esimd_kernels_vllm.egg-info/dependency_links.txt
+  writing top-level names to /tmp/pip-modern-metadata-0fpa7vsc/custom_esimd_kernels_vllm.egg-info/top_level.txt
+  writing manifest file '/tmp/pip-modern-metadata-0fpa7vsc/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/vcs_versioning/overrides.py:609: UserWarning: No GlobalOverrides context is active. Auto-creating one with SETUPTOOLS_SCM prefix for backwards compatibility. Consider using 'with GlobalOverrides.from_env("YOUR_TOOL"):' explicitly.
+    return get_active_overrides().subprocess_timeout
+  writing manifest file '/tmp/pip-modern-metadata-0fpa7vsc/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  creating '/tmp/pip-modern-metadata-0fpa7vsc/custom_esimd_kernels_vllm-0.1.0.dist-info'
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+  Source in ./. has version 0.1.0, which satisfies requirement custom-esimd-kernels-vllm==0.1.0 from file:///home/edgeai/esimd_learning
+  Removed custom-esimd-kernels-vllm==0.1.0 from file:///home/edgeai/esimd_learning from build tracker '/tmp/pip-build-tracker-59upztg6'
+Created temporary directory: /tmp/pip-unpack-hiaqi3zb
+Building wheels for collected packages: custom-esimd-kernels-vllm
+  Destination directory: /tmp/pip-ephem-wheel-cache-m9gi9r0g/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpu41uisgm
+  Building editable for custom-esimd-kernels-vllm (pyproject.toml): started
+  Running command Building editable for custom-esimd-kernels-vllm (pyproject.toml)
+  running editable_wheel
+  creating /tmp/pip-ephem-wheel-cache-m9gi9r0g/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpu41uisgm/.tmp-mdxagbyi/custom_esimd_kernels_vllm.egg-info
+  writing /tmp/pip-ephem-wheel-cache-m9gi9r0g/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpu41uisgm/.tmp-mdxagbyi/custom_esimd_kernels_vllm.egg-info/PKG-INFO
+  writing dependency_links to /tmp/pip-ephem-wheel-cache-m9gi9r0g/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpu41uisgm/.tmp-mdxagbyi/custom_esimd_kernels_vllm.egg-info/dependency_links.txt
+  writing top-level names to /tmp/pip-ephem-wheel-cache-m9gi9r0g/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpu41uisgm/.tmp-mdxagbyi/custom_esimd_kernels_vllm.egg-info/top_level.txt
+  writing manifest file '/tmp/pip-ephem-wheel-cache-m9gi9r0g/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpu41uisgm/.tmp-mdxagbyi/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  /home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/vcs_versioning/overrides.py:609: UserWarning: No GlobalOverrides context is active. Auto-creating one with SETUPTOOLS_SCM prefix for backwards compatibility. Consider using 'with GlobalOverrides.from_env("YOUR_TOOL"):' explicitly.
+    return get_active_overrides().subprocess_timeout
+  writing manifest file '/tmp/pip-ephem-wheel-cache-m9gi9r0g/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpu41uisgm/.tmp-mdxagbyi/custom_esimd_kernels_vllm.egg-info/SOURCES.txt'
+  creating '/tmp/pip-ephem-wheel-cache-m9gi9r0g/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpu41uisgm/.tmp-mdxagbyi/custom_esimd_kernels_vllm-0.1.0.dist-info'
+  creating /tmp/pip-ephem-wheel-cache-m9gi9r0g/wheels/0b/66/53/3a804af087326f56c14c43083895bc8fed8ea681718f253624/tmpu41uisgm/.tmp-mdxagbyi/custom_esimd_kernels_vllm-0.1.0.dist-info/WHEEL
+  running build_py
+  running build_ext
+  building 'custom_esimd_kernels_vllm.custom_esimd_kernels' extension
+  creating /tmp/tmphia24is1.build-temp/csrc/xpu
+  Emitting ninja build file /tmp/tmphia24is1.build-temp/build.ninja...
+  Compiling objects...
+  Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+  Building editable for custom-esimd-kernels-vllm (pyproject.toml): finished with status 'canceled'
+ERROR: Operation cancelled by user
+Exception information:
+Traceback (most recent call last):
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/cli/base_command.py", line 109, in _run_wrapper
+    status = _inner_run()
+             ^^^^^^^^^^^^
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/cli/base_command.py", line 102, in _inner_run
+    return self.run(options, args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/cli/req_command.py", line 101, in wrapper
+    return func(self, options, args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/commands/install.py", line 524, in run
+    _, build_failures = build(
+                        ^^^^^^
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/wheel_builder.py", line 228, in build
+    wheel_file = _build_one(
+                 ^^^^^^^^^^^
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/wheel_builder.py", line 142, in _build_one
+    wheel_path = _build_one_inside_env(req, output_dir, editable)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/wheel_builder.py", line 162, in _build_one_inside_env
+    wheel_path = build_wheel_editable(
+                 ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/operations/build/wheel_editable.py", line 32, in build_wheel_editable
+    wheel_name = backend.build_editable(
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/utils/misc.py", line 692, in build_editable
+    return super().build_editable(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_vendor/pyproject_hooks/_impl.py", line 339, in build_editable
+    return self._call_hook(
+           ^^^^^^^^^^^^^^^^
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_vendor/pyproject_hooks/_impl.py", line 392, in _call_hook
+    self._subprocess_runner(
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/utils/subprocess.py", line 240, in runner
+    call_subprocess(
+  File "/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/pip/_internal/utils/subprocess.py", line 154, in call_subprocess
+    line: str = proc.stdout.readline()
+                ^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+Removed build tracker: '/tmp/pip-build-tracker-59upztg6'

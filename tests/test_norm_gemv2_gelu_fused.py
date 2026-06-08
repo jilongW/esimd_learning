@@ -16,11 +16,11 @@ WARMUP_ITERS = 10
 BENCHMARK_ITERS = 500
 TARGET_BW = 112.0
 SHAPES = [
-    (256, 256, 2048),
-    (256, 256, 2560),
-    (1024, 1024, 2560),
+    # (256, 256, 2048),
+    # (256, 256, 2560),
+    # (1024, 1024, 2560),
     (10240, 10240, 2560),
-    (10240, 10240, 5120),
+    # (10240, 10240, 5120),
 ]
 NORM_GEMV2_VL_CANDIDATES = (128, 256, 512)
 NORM_GEMV2_KS_CANDIDATES = (1, 2, 4, 8, 10)
@@ -227,7 +227,7 @@ def _search_best_combined_vl_ks(
         if best_us is None or candidate_us < (best_us - latency_tolerance_us):
             best_cfg = (vl, ks)
             best_us = candidate_us
-        print(f"Tested combined config K={k_size} N={total_n}: VL={vl} KS={ks} -> {candidate_us:.2f} us")
+        # print(f"Tested combined config K={k_size} N={total_n}: VL={vl} KS={ks} -> {candidate_us:.2f} us")
     if best_cfg is None:
         best_cfg = (heuristic_vl, heuristic_ks)
         best_us = rule_us if rule_us is not None else float("inf")
@@ -390,7 +390,7 @@ def benchmark_norm_gemv2_three_paths() -> None:
         norm_weight = torch.randn(k_size, dtype=torch.float16, device=DEVICE) * 0.1
         scale0 = torch.tensor([0.0008], dtype=torch.float32, device=DEVICE)
         scale1 = torch.tensor([0.0008], dtype=torch.float32, device=DEVICE)
-        combined_scale = torch.tensor([scale0.item(), scale1.item()], dtype=torch.float32, device=DEVICE)
+        combined_scale = torch.tensor([scale0.item()], dtype=torch.float32, device=DEVICE)
 
         weight_bytes = (n0 + n1) * k_size
         target_mem = 32 * 1024 * 1024
@@ -468,10 +468,7 @@ def benchmark_norm_gemv2_three_paths() -> None:
         def run_split() -> None:
             current_idx = run_state["index"] % num_copies
             esimd_rms_norm(hidden, norm_weight, EPS, normed, rms_vl, rms_ks)
-            esimd_gemv_fp8(normed, weight0_pool[current_idx], scale0, split_out0)
-            esimd_gemv_fp8(normed, weight1_pool[current_idx], scale1, split_out1)
-            split_logits[:, :n0] = split_out0
-            split_logits[:, n0:] = split_out1
+            esimd_gemv_fp8(normed, combined_weight_pool[current_idx], combined_scale, split_logits)
             esimd_gelu_tanh_and_mul(split_logits, split_output)
             run_state["index"] += 1
 

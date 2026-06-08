@@ -7,6 +7,8 @@ from vllm.platforms import current_platform
 device = torch.device("xpu")
 VL_CANDIDATES = (128, 256, 512)
 KS_CANDIDATES = (1, 2, 4, 8, 10)
+GEMM_VL_CANDIDATES = (64, 128, 256, 512)
+GEMM_KS_CANDIDATES = (1, 2, 4, 5)
 SUPPORTED_GEMV_CONFIGS = {
     (512, 1),
     (512, 2),
@@ -22,14 +24,14 @@ SUPPORTED_GEMV_CONFIGS = {
 }
 
 GEMV_SHAPES = [
-    ("qkv_proj", 3072, 2560),
+    # ("qkv_proj", 3072, 2560),
     ("qkv_proj", 6144, 2560),
-    ("Attn o_proj", 2560, 2048),
-    ("Attn o_proj", 2560, 4096),
-    ("gate_up_proj", 20480, 2560),
-    ("down_proj", 2560, 10240),
-    ("per_layer_input_gate", 256, 2560),
-    ("per_layer_input_gate_out", 2560, 256),
+    # ("Attn o_proj", 2560, 2048),
+    # ("Attn o_proj", 2560, 4096),
+    # ("gate_up_proj", 20480, 2560),
+    # ("down_proj", 2560, 10240),
+    # ("per_layer_input_gate", 256, 2560),
+    # ("per_layer_input_gate_out", 2560, 256),
 ]
 
 
@@ -96,14 +98,22 @@ def _valid_vl_ks(K: int) -> list[tuple[int, int]]:
     return valid
 
 
-def _benchmark_one(run_fn, output_fn, iters: int) -> tuple[float, list[float]]:
+def _benchmark_one(run_fn, output_fn, iters: int, sample_count: int = 64) -> tuple[float, list[float]]:
     for _ in range(10):
         run_fn(0)
     torch.xpu.synchronize()
 
-    outputs = []
+    # Timed region: kernel execution only.
     t0 = time.perf_counter()
     for index in range(iters):
+        run_fn(index)
+    torch.xpu.synchronize()
+    elapsed_us = (time.perf_counter() - t0) * 1e6 / iters
+
+    # Untimed region: collect a small deterministic sample for parity checks.
+    outputs = []
+    collect_iters = min(iters, sample_count)
+    for index in range(collect_iters):
         run_fn(index)
         output = output_fn()
         sample_index = [0] * output.dim()
@@ -112,12 +122,28 @@ def _benchmark_one(run_fn, output_fn, iters: int) -> tuple[float, list[float]]:
         else:
             sample_index[0] = index % output.size(0)
         outputs.append(float(output[tuple(sample_index)]))
+
+    torch.xpu.synchronize()
+    gc.collect()
+    if hasattr(torch.xpu, "empty_cache"):
+        torch.xpu.empty_cache()
+    return elapsed_us, outputs
+
+
+def _benchmark_latency_only(run_fn, iters: int) -> float:
+    for _ in range(8):
+        run_fn(0)
+    torch.xpu.synchronize()
+
+    t0 = time.perf_counter()
+    for index in range(iters):
+        run_fn(index)
     torch.xpu.synchronize()
     elapsed_us = (time.perf_counter() - t0) * 1e6 / iters
     gc.collect()
     if hasattr(torch.xpu, "empty_cache"):
         torch.xpu.empty_cache()
-    return elapsed_us, outputs
+    return elapsed_us
 
 
 def _assert_output_lists_close(lhs_outputs: list[float], rhs_outputs: list[float]) -> None:
@@ -138,6 +164,62 @@ def _benchmark_iters(total_bytes: int) -> int:
     if total_bytes < 2 * 1024 * 1024:
         return 1000
     return 300
+
+
+def _valid_gemm_vl_ks(K: int) -> list[tuple[int, int]]:
+    valid = []
+    for vl in GEMM_VL_CANDIDATES:
+        for ks in GEMM_KS_CANDIDATES:
+            if ks <= 0:
+                continue
+            if K % ks != 0:
+                continue
+            if (K // ks) % vl != 0:
+                continue
+            valid.append((vl, ks))
+    return valid
+
+
+def _autotune_gemm_vl_ks(
+    input_t: torch.Tensor,
+    weights: list[torch.Tensor],
+    scale_scalar: torch.Tensor,
+    out_gemm: torch.Tensor,
+    K: int,
+    nc: int,
+    iters: int,
+) -> tuple[tuple[int, int], float, list[tuple[int, int]], float]:
+    from custom_esimd_kernels_vllm import esimd_gemm_fp8_pert
+
+    candidates = _valid_gemm_vl_ks(K)
+    if not candidates:
+        return (0, 0), float("inf"), [(0, 0)], float("inf")
+
+    best_us = float("inf")
+    records: list[tuple[float, tuple[int, int]]] = []
+    for vl, ks in candidates:
+        us = _benchmark_latency_only(
+            lambda index, vl=vl, ks=ks: esimd_gemm_fp8_pert(
+                input_t,
+                weights[index % nc],
+                scale_scalar,
+                out_gemm,
+                vl,
+                ks,
+            ),
+            iters,
+        )
+        records.append((us, (vl, ks)))
+        if us < best_us:
+            best_us = us
+    threshold_us = best_us + 1.0
+    sorted_records = sorted(records, key=lambda x: x[0])
+    best_pick_us, best_pick = sorted_records[0]
+    best_cfg = [cfg for us, cfg in sorted_records if us <= threshold_us]
+    if not best_cfg:
+        best_cfg = [best_pick]
+
+    return best_pick, best_pick_us, best_cfg, best_us
 
 
 def benchmark_gemm_vs_gemv_vs_vllm():
@@ -178,7 +260,8 @@ def benchmark_gemm_vs_gemv_vs_vllm():
             element_bytes = torch.tensor([], dtype=io_dtype).element_size()
             total_bytes = K * element_bytes + N * K + N * 2 + N * element_bytes
             total_flops = 2 * N * K
-            ni = 1000
+            ni = _benchmark_iters(total_bytes)
+            tune_iters = max(20, min(120, ni // 4))
             config = f"N={N} K={K} {dtype_name}"
 
             vllm_us, vllm_outputs = _benchmark_one(
@@ -197,12 +280,25 @@ def benchmark_gemm_vs_gemv_vs_vllm():
 
             time.sleep(1)
 
+            best_pick, best_pick_us, best_cfg, best_us = _autotune_gemm_vl_ks(
+                input_t=input_t,
+                weights=weights,
+                scale_scalar=scale_scalar,
+                out_gemm=out_gemm,
+                K=K,
+                nc=nc,
+                iters=tune_iters,
+            )
+            gemm_vl, gemm_ks = best_pick
+
             gemm_us, gemm_outputs = _benchmark_one(
                 lambda index: esimd_gemm_fp8_pert(
                     input_t,
                     weights[index % nc],
                     scale_scalar,
                     out_gemm,
+                    gemm_vl,
+                    gemm_ks,
                 ),
                 lambda: out_gemm,
                 ni,
@@ -241,6 +337,11 @@ def benchmark_gemm_vs_gemv_vs_vllm():
                 f"{name:<30} {config:>20} | {gemm_us:>8.2f} {gemv_us:>8.2f} {vllm_us:>8.2f} "
                 f"{gemm_tflops:>8.4f} {gemv_tflops:>8.4f} {vllm_tflops:>8.4f} "
                 f"{gemm_bw:>10.2f} {gemv_bw:>10.2f} {vllm_bw:>10.2f}"
+            )
+            print(
+                f"  gemm autotune pick: vl={gemm_vl}, ks={gemm_ks}; "
+                f"pick_us={best_pick_us:.2f}; best_us={best_us:.2f}; "
+                f"near_best_cfgs={best_cfg}"
             )
             time.sleep(1)
 

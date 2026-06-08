@@ -102,11 +102,11 @@ SYCL_ESIMD_FUNCTION inline simd<float, VL> fp8_dequant_norm(
 constexpr int NORM_GEMV_SLM_CACHE_K = 2560;
 
 struct NormGEMV_fp8_pert_kernel_256_1 {
-    const fp16*    x_ptr;        // [1, K]
-    const fp16*    norm_w_ptr;   // [K]
-    const uint8_t* gemv_weight;  // [N, K] FP8
-    const float*   gemv_scale;   // [1]
-    fp16*          output;       // [N]
+    const fp16*    __restrict x_ptr;        // [1, K]
+    const fp16*    __restrict norm_w_ptr;   // [K]
+    const uint8_t* __restrict gemv_weight;  // [N, K] FP8
+    const float*   __restrict gemv_scale;   // [1]
+    fp16*          __restrict output;       // [N]
     int N;
     int K;
     float eps;
@@ -119,30 +119,39 @@ struct NormGEMV_fp8_pert_kernel_256_1 {
 
         int n_chunks = K / VL;
         float sum_sq = 0.0f;
+        const fp16* x_base = x_ptr;
+#pragma unroll
         for (int c = 0; c < n_chunks; c++) {
-            int offset = c * VL;
-            simd<float, VL> x = block_load<fp16, VL>(x_ptr + offset);
-            sum_sq += reduce<float>(x * x, std::plus<>());
+            simd<float, VL> x = block_load<fp16, VL>(x_base);
+            sum_sq += sycl::ext::intel::esimd::detail::sum<float, float, VL>(x * x);
+            x_base += VL;
         }
 
         float inv_rms = sycl::ext::intel::esimd::rsqrt(
             simd<float, 8>(sum_sq / (float)K + eps))[0];
 
+        const fp16* nw_base = norm_w_ptr;
+        const fp16* x_norm_base = x_ptr;
+        const uint8_t* w_row = gemv_weight + (size_t)n * K;
+        const uint8_t* w_base = w_row;
+        float out_scale = gemv_scale[0];
         float acc = 0.0f;
+#pragma unroll
         for (int c = 0; c < n_chunks; c++) {
-            int offset = c * VL;
-
-            simd<float, VL> x = block_load<fp16, VL>(x_ptr + offset);
-            simd<float, VL> nw = block_load<fp16, VL>(norm_w_ptr + offset);
+            simd<float, VL> x = block_load<fp16, VL>(x_norm_base);
+            simd<float, VL> nw = block_load<fp16, VL>(nw_base);
             simd<float, VL> normed = x * inv_rms * nw;
 
-            simd<uint8_t, VL> w_raw = block_load<uint8_t, VL>(
-                gemv_weight + (size_t)n * K + offset);
+            simd<uint8_t, VL> w_raw = block_load<uint8_t, VL>(w_base);
             simd<float, VL> w_f = fp8_dequant_norm<VL>(w_raw, fp8_mode);
-            acc += reduce<float>(normed * w_f, std::plus<>());
+            acc += sycl::ext::intel::esimd::detail::sum<float, float, VL>(normed * w_f);
+
+            x_norm_base += VL;
+            nw_base += VL;
+            w_base += VL;
         }
 
-        output[n] = fp16(acc * gemv_scale[0]);
+        output[n] = fp16(acc * out_scale);
     }
 };
 

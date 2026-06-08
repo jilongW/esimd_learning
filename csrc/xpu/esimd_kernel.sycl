@@ -384,12 +384,7 @@ at::Tensor esimd_norm_gemv_fp8_pert(
     int64_t vl,
     int64_t ks)
 {
-    int total_N = (int)gemv_weight.size(0);
-    TORCH_CHECK(
-        total_N % 2 == 0,
-        "esimd_gemv_gelu_tanh_mul_fp8_pert: gemv_weight rows must be even ([2N, K])"
-    );
-    int N = total_N / 2;
+    int N = (int)gemv_weight.size(0);
     int K = (int)gemv_weight.size(1);
     int gemv_scale_count = (int)gemv_scale.numel();
     int fp8_mode = get_fp8_mode(gemv_weight);
@@ -417,10 +412,6 @@ at::Tensor esimd_norm_gemv_fp8_pert(
     TORCH_CHECK(
         gemv_scale.scalar_type() == at::ScalarType::Float,
         "esimd_norm_gemv_fp8_pert: gemv_scale must be float32"
-    );
-    TORCH_CHECK(
-        gemv_scale.numel() == 1 || gemv_scale.numel() == 2,
-        "esimd_norm_gemv_fp8_pert: gemv_scale must have 1 or 2 elements"
     );
     TORCH_CHECK(
         output.numel() == N,
