@@ -169,16 +169,60 @@ inline void select_vl_ks_impl(uint32_t N, uint32_t K, int k256_vl, int k256_ks, 
     normalize_gemv_vl_ks(K, vl, ks);
 }
 
-inline void select_vl_ks_pern(uint32_t N, uint32_t K, int& vl, int& ks) {
+inline void select_vl_ks_pern_xe3(uint32_t N, uint32_t K, int& vl, int& ks) {
     select_vl_ks_impl(N, K, 128, 1, vl, ks);
 }
 
-inline void select_vl_ks_pert(uint32_t N, uint32_t K, int& vl, int& ks) {
+inline void select_vl_ks_pern_xe2(uint32_t N, uint32_t K, int& vl, int& ks) {
+    select_vl_ks_pern_xe3(N, K, vl, ks);
+}
+
+inline void select_vl_ks_pert_xe3(uint32_t N, uint32_t K, int& vl, int& ks) {
     select_vl_ks_impl(N, K, 256, 1, vl, ks);
 }
 
-inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
-    select_vl_ks_pern(N, K, vl, ks);
+inline void select_vl_ks_pert_xe2(uint32_t N, uint32_t K, int& vl, int& ks) {
+    select_vl_ks_pert_xe3(N, K, vl, ks);
+}
+
+inline void select_vl_ks_pern(
+    uint32_t N,
+    uint32_t K,
+    int& vl,
+    int& ks,
+    const sycl::device* dev = nullptr) {
+    if (dev != nullptr) {
+        auto arch = dev->get_info<sycl::ext::oneapi::experimental::info::device::architecture>();
+        if (is_ptl_architecture_device(arch)) {
+            select_vl_ks_pern_xe3(N, K, vl, ks);
+        } else {
+            select_vl_ks_pern_xe2(N, K, vl, ks);
+        }
+        return;
+    }
+    select_vl_ks_pern_xe2(N, K, vl, ks);
+}
+
+inline void select_vl_ks_pert(
+    uint32_t N,
+    uint32_t K,
+    int& vl,
+    int& ks,
+    const sycl::device* dev = nullptr) {
+    if (dev != nullptr) {
+        auto arch = dev->get_info<sycl::ext::oneapi::experimental::info::device::architecture>();
+        if (is_ptl_architecture_device(arch)) {
+            select_vl_ks_pert_xe3(N, K, vl, ks);
+        } else {
+            select_vl_ks_pert_xe2(N, K, vl, ks);
+        }
+        return;
+    }
+    select_vl_ks_pert_xe2(N, K, vl, ks);
+}
+
+inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks, const sycl::device* dev = nullptr) {
+    select_vl_ks_pern(N, K, vl, ks, dev);
 }
 
 template<typename InputT, typename OutputT>
@@ -242,6 +286,35 @@ inline void GEMV_fp8_pern_host(
     } else {
         GEMV_fp8_pern_host_impl<fp16, fp16>(input_data, weight_data, scale_data, output_data, N, K, vl, ks, fp8_mode, q);
     }
+}
+
+inline void GEMV_fp8_pern_host(
+    uint8_t* input_data,
+    uint8_t* weight_data,
+    uint8_t* scale_data,
+    uint8_t* output_data,
+    uint32_t N,
+    uint32_t K,
+    bool input_is_bf16,
+    bool output_is_bf16,
+    int fp8_mode,
+    sycl::queue& q) {
+    int vl, ks;
+    auto dev = q.get_device();
+    select_vl_ks_pern(N, K, vl, ks, &dev);
+    GEMV_fp8_pern_host(
+        input_data,
+        weight_data,
+        scale_data,
+        output_data,
+        N,
+        K,
+        vl,
+        ks,
+        input_is_bf16,
+        output_is_bf16,
+        fp8_mode,
+        q);
 }
 
 // ============================================================================
@@ -331,7 +404,8 @@ inline void GEMV_fp8_pern_fused_host(
     for (int i = 0; i < GEMV_COUNT; i++) total_N += Ns[i];
 
     int vl, ks;
-    select_vl_ks_pern(total_N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks_pern(total_N, K, vl, ks, &dev);
 
     int global = total_N * ks;
     int local  = ks;
@@ -505,7 +579,8 @@ inline void GEMV_fp8_pert_host(
     int fp8_mode,
     sycl::queue& q) {
     int vl, ks;
-    select_vl_ks_pert(N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks_pert(N, K, vl, ks, &dev);
     GEMV_fp8_pert_host(
         input_data,
         weight_data,
@@ -605,7 +680,8 @@ inline void GEMV_fp8_pert_fused_host(
     for (int i = 0; i < GEMV_COUNT; i++) total_N += Ns[i];
 
     int vl, ks;
-    select_vl_ks_pert(total_N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks_pert(total_N, K, vl, ks, &dev);
 
     int global = total_N * ks;
     int local  = ks;

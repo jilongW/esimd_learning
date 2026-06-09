@@ -35,6 +35,10 @@ at::Tensor esimd_rms_norm_res(
     at::Tensor hidden_states, at::Tensor res, at::Tensor weight,
     double eps, at::Tensor output, int64_t vl, int64_t ks);
 
+at::Tensor esimd_rms_norm_res_scale(
+    at::Tensor hidden_states, at::Tensor res, at::Tensor weight,
+    at::Tensor scale, double eps, at::Tensor output, int64_t vl, int64_t ks);
+
 at::Tensor esimd_norm_gemv_fp8_pert(
     at::Tensor hidden_states, at::Tensor norm_weight,
     at::Tensor gemv_weight, at::Tensor gemv_scale,

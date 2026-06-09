@@ -7,9 +7,24 @@
  */
 
 #pragma once
+#include <iostream>
+#include <type_traits>
 #include "utils.h"
 
-inline void select_rms_norm_vl_ks(uint32_t rows, uint32_t V, int& vl, int& ks) {
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+
+
+inline bool is_ptl_architecture(sycl::ext::oneapi::experimental::architecture arch) {
+    using sycl::ext::oneapi::experimental::architecture;
+    return arch == architecture::intel_gpu_ptl_h || arch == architecture::intel_gpu_ptl_u;
+}
+
+inline void select_rms_norm_vl_ks_xe2(
+    uint32_t rows,
+    uint32_t V,
+    int& vl,
+    int& ks)
+{
     vl = 512;
     ks = 1;
 
@@ -18,14 +33,10 @@ inline void select_rms_norm_vl_ks(uint32_t rows, uint32_t V, int& vl, int& ks) {
         ks = 1;
     } else if ( V <= 2560){
         vl = 128;
-        ks = 10;
+        ks = 8;
     } else if ( V <= 5120){
         vl = 256;
-        ks = 10;
-     }
-    else {
-        vl = 1024;
-        ks = 1;
+        ks = 8;
     }
 
     int kpt = V / ks;
@@ -39,6 +50,60 @@ inline void select_rms_norm_vl_ks(uint32_t rows, uint32_t V, int& vl, int& ks) {
             break;
         }
     }
+}
+
+inline void select_rms_norm_vl_ks_xe3(
+    uint32_t rows,
+    uint32_t V,
+    int& vl,
+    int& ks)
+{
+    vl = 512;
+    ks = 1;
+
+
+    if ( V <= 512){
+        vl = 256;
+        ks = 1;
+    } else if ( V <= 2560){
+        vl = 128;
+        ks = 10;
+    } else if ( V <= 5120){
+        vl = 256;
+        ks = 10;
+    }
+
+    int kpt = V / ks;
+    while (vl > kpt || kpt % vl != 0) {
+        if (vl > 128) {
+            vl /= 2;
+        } else if (ks > 1) {
+            ks /= 2;
+            kpt = V / ks;
+        } else {
+            break;
+        }
+    }
+}
+
+inline void select_rms_norm_vl_ks(
+    uint32_t rows,
+    uint32_t V,
+    int& vl,
+    int& ks,
+    const sycl::device* dev = nullptr)
+{
+    if (dev != nullptr) {
+        auto arch = dev->get_info<sycl::ext::oneapi::experimental::info::device::architecture>();
+        if (is_ptl_architecture(arch)) {
+            select_rms_norm_vl_ks_xe3(rows, V, vl, ks);
+        } else {
+            select_rms_norm_vl_ks_xe2(rows, V, vl, ks);
+        }
+        return;
+    }
+
+    select_rms_norm_vl_ks_xe2(rows, V, vl, ks);
 }
 
 template <typename scalar_t, int VL, int KS>
@@ -254,7 +319,8 @@ inline void rms_norm_host(
     sycl::queue& q){
         int vl = 128;
         int ks = 1;
-        select_rms_norm_vl_ks(rows, V, vl, ks);
+        auto dev = q.get_device();
+        select_rms_norm_vl_ks(rows, V, vl, ks, &dev);
         using RmsNormDispatchFn = void (*)(
             const uint8_t*,
             const uint8_t*,

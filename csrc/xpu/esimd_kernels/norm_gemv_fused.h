@@ -18,7 +18,7 @@
 #pragma once
 #include "utils.h"
 
-inline void select_vl_ks_norm_gemv(uint32_t N, uint32_t K, int& vl, int& ks) {
+inline void select_vl_ks_norm_gemv_xe3(uint32_t N, uint32_t K, int& vl, int& ks) {
     if (K == 256) {
         vl = 256;
         ks = 1;
@@ -70,6 +70,28 @@ inline void select_vl_ks_norm_gemv(uint32_t N, uint32_t K, int& vl, int& ks) {
         }
         k_per_thread = (ks > 0) ? (int)(K / ks) : 0;
     }
+}
+
+inline void select_vl_ks_norm_gemv_xe2(uint32_t N, uint32_t K, int& vl, int& ks) {
+    select_vl_ks_norm_gemv_xe3(N, K, vl, ks);
+}
+
+inline void select_vl_ks_norm_gemv(
+    uint32_t N,
+    uint32_t K,
+    int& vl,
+    int& ks,
+    const sycl::device* dev = nullptr) {
+    if (dev != nullptr) {
+        auto arch = dev->get_info<sycl::ext::oneapi::experimental::info::device::architecture>();
+        if (is_ptl_architecture_device(arch)) {
+            select_vl_ks_norm_gemv_xe3(N, K, vl, ks);
+        } else {
+            select_vl_ks_norm_gemv_xe2(N, K, vl, ks);
+        }
+        return;
+    }
+    select_vl_ks_norm_gemv_xe2(N, K, vl, ks);
 }
 
 template<int VL>
@@ -344,7 +366,8 @@ inline void norm_gemv_fp8_pert_host(
 {
     int vl;
     int ks;
-    select_vl_ks_norm_gemv(N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks_norm_gemv(N, K, vl, ks, &dev);
     norm_gemv_fp8_pert_host(
         x_ptr,
         norm_w_ptr,

@@ -8,13 +8,8 @@ from esimd_build_extention import BuildExtension
 
 root = Path(__file__).parent.resolve()
 
-# Default to the local BMG target to avoid multi-arch SYCL device link crashes.
-# Users can still override this via TORCH_XPU_ARCH_LIST in their environment.
-os.environ.setdefault("TORCH_XPU_ARCH_LIST", "ptl-h")
-
 import torch
 torch_include = str(Path(torch.__file__).parent / "include")
-DEVICE_TARGET = "ptl-h"
 ext_modules = [
     SyclExtension(
         name="custom_esimd_kernels_vllm.custom_esimd_kernels",

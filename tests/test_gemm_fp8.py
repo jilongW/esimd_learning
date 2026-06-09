@@ -24,14 +24,15 @@ SUPPORTED_GEMV_CONFIGS = {
 }
 
 GEMV_SHAPES = [
-    # ("qkv_proj", 3072, 2560),
+    ("qkv_proj", 3072, 2560),
     ("qkv_proj", 6144, 2560),
-    # ("Attn o_proj", 2560, 2048),
-    # ("Attn o_proj", 2560, 4096),
-    # ("gate_up_proj", 20480, 2560),
-    # ("down_proj", 2560, 10240),
-    # ("per_layer_input_gate", 256, 2560),
-    # ("per_layer_input_gate_out", 2560, 256),
+    ("Attn o_proj", 2560, 2048),
+    ("Attn o_proj", 2560, 4096),
+    ("gate_up_proj", 20480, 2560),
+    ("down_proj", 2560, 10240),
+    ("per_layer_input_gate", 256, 2560),
+    ("per_layer_input_gate_out", 2560, 256),
+    ("embedding", 262144, 2560),
 ]
 
 
@@ -223,7 +224,7 @@ def _autotune_gemm_vl_ks(
 
 
 def benchmark_gemm_vs_gemv_vs_vllm():
-    from custom_esimd_kernels_vllm import esimd_gemm_fp8_pert, esimd_gemv_fp8_pert
+    from custom_esimd_kernels_vllm import esimd_gemm_fp8_pert, esimd_gemv_fp8
 
     if not hasattr(torch.ops, "_xpu_C") or not hasattr(torch.ops._xpu_C, "fp8_gemm_w8a16"):
         raise RuntimeError("torch.ops._xpu_C.fp8_gemm_w8a16 is unavailable")
@@ -306,15 +307,12 @@ def benchmark_gemm_vs_gemv_vs_vllm():
             time.sleep(1)
 
             gemv_us, gemv_outputs = _benchmark_one(
-                lambda index: esimd_gemv_fp8_pert(
+                lambda index: esimd_gemv_fp8(
                     input_t,
                     weights[index % nc],
                     scale_scalar,
                     out_gemv,
-                    N,
-                    K,
-                    vl,
-                    ks,
+
                 ),
                 lambda: out_gemv,
                 ni,
@@ -407,7 +405,7 @@ def test_e5m2_correctness():
 
 def test_gemm_vs_gemv_m1():
     """M=1: GEMM dispatch should produce same result as dedicated GEMV."""
-    from custom_esimd_kernels_vllm import esimd_gemv_fp8_pert, esimd_gemm_fp8_pert
+    from custom_esimd_kernels_vllm import esimd_gemv_fp8, esimd_gemm_fp8_pert
 
     for io_dtype in [torch.float16, torch.bfloat16]:
         print(f"\n--- GEMM vs GEMV at M=1 ({str(io_dtype).split('.')[-1]}) ---")
@@ -421,7 +419,7 @@ def test_gemm_vs_gemv_m1():
             out_gemv = torch.zeros(1, N, dtype=io_dtype, device=device)
             out_gemm = torch.zeros(1, N, dtype=io_dtype, device=device)
 
-            esimd_gemv_fp8_pert(input_t, weight_fp8, scale_t, out_gemv, N, K, vl, ks)
+            esimd_gemv_fp8(input_t, weight_fp8, scale_t, out_gemv)
             esimd_gemm_fp8_pert(input_t, weight_fp8, scale_t, out_gemm)
 
             # Both use batched GEMV internally for M=1, should be close.
@@ -442,8 +440,8 @@ if __name__ == "__main__":
     print("custom-esimd-kernels-vllm: GEMM FP8 Per-tensor Tests")
     print("=" * 60)
 
-    test_correctness()
+    # test_correctness()
     # test_e5m2_correctness()
-    test_gemm_vs_gemv_m1()
+    # test_gemm_vs_gemv_m1()
     benchmark_gemm_vs_gemv_vs_vllm()
 

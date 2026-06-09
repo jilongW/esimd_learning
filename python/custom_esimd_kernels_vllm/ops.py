@@ -116,6 +116,7 @@ def esimd_rms_norm_res(
     output: torch.Tensor,
     vl: int | None = None,
     ks: int | None = None,
+    scale: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Batched RMSNorm_Res.
 
@@ -123,6 +124,8 @@ def esimd_rms_norm_res(
     res: [..., K] fp16 or bf16, where K is a multiple of 128.
     weight: [K] with the same dtype as hidden_states.
     output: preallocated output tensor with the same shape and dtype as hidden_states.
+    scale: optional float32 scalar tensor. If provided, computes
+      output = (rmsnorm(hidden_states) * weight + res) * scale.
     vl: vector length candidate, one of 128, 256, 512, 1024.
     ks: per-row thread split, one of 1, 2, 5, 8, 10.
     """
@@ -130,7 +133,9 @@ def esimd_rms_norm_res(
         raise ValueError("vl and ks must both be provided or both be omitted")
     if vl is None and ks is None:
         vl, ks = 0, 0
-    return _ops.esimd_rms_norm_res(hidden_states, res, weight, eps, output, vl, ks)
+    if scale is None:
+        return _ops.esimd_rms_norm_res(hidden_states, res, weight, eps, output, vl, ks)
+    return _ops.esimd_rms_norm_res_scale(hidden_states, res, weight, scale, eps, output, vl, ks)
 
 
 def esimd_norm_gemv_fp8_pert(

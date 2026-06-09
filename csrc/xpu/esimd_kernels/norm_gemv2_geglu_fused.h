@@ -43,7 +43,7 @@ inline void normalize_norm_gemv2_geglu_vl_ks(uint32_t K, int& vl, int& ks) {
     }
 }
 
-inline void select_vl_ks_norm_gemv2_geglu(uint32_t total_N, uint32_t K, int& vl, int& ks) {
+inline void select_vl_ks_norm_gemv2_geglu_xe3(uint32_t total_N, uint32_t K, int& vl, int& ks) {
     vl = 512;
     ks = 1;
 
@@ -72,6 +72,28 @@ inline void select_vl_ks_norm_gemv2_geglu(uint32_t total_N, uint32_t K, int& vl,
     }
 
     normalize_norm_gemv2_geglu_vl_ks(K, vl, ks);
+}
+
+inline void select_vl_ks_norm_gemv2_geglu_xe2(uint32_t total_N, uint32_t K, int& vl, int& ks) {
+    select_vl_ks_norm_gemv2_geglu_xe3(total_N, K, vl, ks);
+}
+
+inline void select_vl_ks_norm_gemv2_geglu(
+    uint32_t total_N,
+    uint32_t K,
+    int& vl,
+    int& ks,
+    const sycl::device* dev = nullptr) {
+    if (dev != nullptr) {
+        auto arch = dev->get_info<sycl::ext::oneapi::experimental::info::device::architecture>();
+        if (is_ptl_architecture_device(arch)) {
+            select_vl_ks_norm_gemv2_geglu_xe3(total_N, K, vl, ks);
+        } else {
+            select_vl_ks_norm_gemv2_geglu_xe2(total_N, K, vl, ks);
+        }
+        return;
+    }
+    select_vl_ks_norm_gemv2_geglu_xe2(total_N, K, vl, ks);
 }
 
 template<int VL>
@@ -409,7 +431,8 @@ inline void norm_gemv2_geglu_fp8_pert_host(
 {
     int total_N = N0 + N1;
     int vl, ks;
-    select_vl_ks_norm_gemv2_geglu(total_N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks_norm_gemv2_geglu(total_N, K, vl, ks, &dev);
     norm_gemv2_geglu_fp8_pert_host(
         hidden_ptr,
         norm_w_ptr,

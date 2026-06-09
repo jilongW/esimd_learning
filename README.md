@@ -16,6 +16,15 @@
 
 其中 `esimd_gemv_fp8` 会根据 `scale` 自动分流：`scale.numel()==1` 走 per-tensor 路径，`scale.numel()==N` 走 per-N 路径；`esimd_gemv_fp8_pern` 和 `esimd_gemv_fp8_pert` 保留给需要显式路径或手工 sweep 配置的场景。
 
+当前自动选参路径已经统一为架构感知分发：
+
+- selector 接口统一支持 `const sycl::device* dev = nullptr`；
+- 当设备架构是 PTL（`intel_gpu_ptl_h`/`intel_gpu_ptl_u`）时走 `xe3` 策略；
+- 其他架构默认走 `xe2` 策略；
+- 若没有传入 `dev`，默认按 `xe2`。
+
+另外，`csrc/xpu/esimd_kernel.sycl` 现在不再直接调用 `select_vl_ks*`，统一改为调用各 kernel header 的“自动 host 重载”；selector 逻辑在对应 header 内部完成（包括 `q.get_device()` 和 `xe2/xe3` 分流）。
+
 当前 GEMV FP8 的约定是：
 
 - `esimd_gemv_fp8(input, weight, scale, output)`：统一入口，内部根据 `scale` 形状自动选择 pern 或 pert 路径，并自动选择 `vl/ks`。
@@ -23,6 +32,12 @@
 - `esimd_gemv_fp8_pert(input, weight, scale, output, N, K, vl, ks)`：显式 per-tensor 路径，`scale` 是单个 `float` 标量。
 
 `pern` 和 `pert` 的自动选参现在是两套独立 heuristic；统一入口会按实际路径分别使用对应的 `select_vl_ks_pern` 或 `select_vl_ks_pert`。
+
+对应到调用链上：
+
+- `esimd_kernel.sycl` 只负责参数校验和 op 分流；
+- 自动 `vl/ks` 选择在 `csrc/xpu/esimd_kernels/*.h` 的 host 自动重载里完成；
+- 显式 `vl/ks` 模式仍然保留，行为与之前一致。
 
 其中 `esimd_fused_add_rms_norm_batched` 支持 `fp16` 和 `bf16`。它的 dtype 判断方式不是靠 Python 侧额外传字符串或枚举，而是直接在 XPU 入口里根据 `hidden_states.scalar_type()` 判定；`residual` 和 `weight` 必须与 `hidden_states` 保持同 dtype。
 

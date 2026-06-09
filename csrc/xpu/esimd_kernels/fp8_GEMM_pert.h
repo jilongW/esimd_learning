@@ -74,7 +74,7 @@ SYCL_ESIMD_FUNCTION inline simd<fp16, VL> fp8_dequant_fp16(
 }
 
 // ---- VL/K_SPLIT auto-selection (reused from GEMV) ----
-inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
+inline void select_vl_ks_xe3(uint32_t N, uint32_t K, int& vl, int& ks) {
     vl = 512; ks = 1;
 
     if (K < 512) {
@@ -85,10 +85,12 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
 
     if (K >= 10240){
         vl=256; ks=5;
+    } else if (K >= 4096) {
+        vl = 512; ks = 1;
     } else if (K >= 2560) {
-        vl = 128; ks = 10;
+        vl = 512; ks = 5;
     } else if (K >= 2048) {
-        vl = 256; ks = 2;
+        vl = 512; ks = 1;
     }
 
     int kpt = K / ks;
@@ -102,6 +104,28 @@ inline void select_vl_ks(uint32_t N, uint32_t K, int& vl, int& ks) {
             break;
         }
     }
+}
+
+inline void select_vl_ks_xe2(uint32_t N, uint32_t K, int& vl, int& ks) {
+    select_vl_ks_xe3(N, K, vl, ks);
+}
+
+inline void select_vl_ks(
+    uint32_t N,
+    uint32_t K,
+    int& vl,
+    int& ks,
+    const sycl::device* dev = nullptr) {
+    if (dev != nullptr) {
+        auto arch = dev->get_info<sycl::ext::oneapi::experimental::info::device::architecture>();
+        if (is_ptl_architecture_device(arch)) {
+            select_vl_ks_xe3(N, K, vl, ks);
+        } else {
+            select_vl_ks_xe2(N, K, vl, ks);
+        }
+        return;
+    }
+    select_vl_ks_xe2(N, K, vl, ks);
 }
 
 // ============================================================================
@@ -3909,7 +3933,8 @@ inline void batched_gemv_fp8_pert_host(
     sycl::queue& q) {
 
     int vl, ks;
-    select_vl_ks(N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks(N, K, vl, ks, &dev);
     batched_gemv_fp8_pert_host<io_t>(
         input, weight, scale_ptr, output, M, N, K, vl, ks, fp8_mode, q);
 }
@@ -4187,7 +4212,8 @@ inline void GEMM_fp8_pert_dispatch(
     int vl = 0;
     int ks = 0;
     if (M == 1) {
-        select_vl_ks(N, K, vl, ks);
+        auto dev = q.get_device();
+        select_vl_ks(N, K, vl, ks, &dev);
     }
     GEMM_fp8_pert_dispatch<io_t>(
         input, weight, scale_ptr, output, M, N, K, vl, ks, fp8_mode, q);

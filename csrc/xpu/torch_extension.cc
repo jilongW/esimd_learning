@@ -27,6 +27,9 @@ TORCH_LIBRARY(custom_esimd_kernels_vllm, m) {
       m.def("esimd_rms_norm_res(Tensor hidden_states, Tensor res, Tensor weight, float eps, Tensor output, int vl, int ks) -> Tensor");
       m.impl("esimd_rms_norm_res", torch::kXPU, &esimd_rms_norm_res);
 
+      m.def("esimd_rms_norm_res_scale(Tensor hidden_states, Tensor res, Tensor weight, Tensor scale, float eps, Tensor output, int vl, int ks) -> Tensor");
+      m.impl("esimd_rms_norm_res_scale", torch::kXPU, &esimd_rms_norm_res_scale);
+
       m.def("esimd_norm_gemv_fp8_pert(Tensor hidden_states, Tensor norm_weight, "
             "Tensor gemv_weight, Tensor gemv_scale, Tensor output, float eps, int vl, int ks) -> Tensor");
       m.impl("esimd_norm_gemv_fp8_pert", torch::kXPU, &esimd_norm_gemv_fp8_pert);

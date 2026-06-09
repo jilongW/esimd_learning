@@ -21,7 +21,7 @@
 #pragma once
 #include "utils.h"
 
-inline void select_vl_ks_gemv_gelu_tanh_mul(uint32_t N, uint32_t K, int& vl, int& ks) {
+inline void select_vl_ks_gemv_gelu_tanh_mul_xe3(uint32_t N, uint32_t K, int& vl, int& ks) {
     if (K == 256) {
         vl = 256;
         ks = 1;
@@ -56,6 +56,28 @@ inline void select_vl_ks_gemv_gelu_tanh_mul(uint32_t N, uint32_t K, int& vl, int
         }
         k_per_thread = (ks > 0) ? (int)(K / ks) : 0;
     }
+}
+
+inline void select_vl_ks_gemv_gelu_tanh_mul_xe2(uint32_t N, uint32_t K, int& vl, int& ks) {
+    select_vl_ks_gemv_gelu_tanh_mul_xe3(N, K, vl, ks);
+}
+
+inline void select_vl_ks_gemv_gelu_tanh_mul(
+    uint32_t N,
+    uint32_t K,
+    int& vl,
+    int& ks,
+    const sycl::device* dev = nullptr) {
+    if (dev != nullptr) {
+        auto arch = dev->get_info<sycl::ext::oneapi::experimental::info::device::architecture>();
+        if (is_ptl_architecture_device(arch)) {
+            select_vl_ks_gemv_gelu_tanh_mul_xe3(N, K, vl, ks);
+        } else {
+            select_vl_ks_gemv_gelu_tanh_mul_xe2(N, K, vl, ks);
+        }
+        return;
+    }
+    select_vl_ks_gemv_gelu_tanh_mul_xe2(N, K, vl, ks);
 }
 
 template<int VL>
@@ -278,13 +300,7 @@ inline void gemv_gelu_tanh_mul_fp8_pert_host_impl(
         });
 
     if (use_slm_cache) {
-        if (vl == 1024 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 1, true) }
-        else if (vl == 1024 && ks == 2) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 2, true) }
-        else if (vl == 1024 && ks == 5) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 5, true) }
-        else if (vl == 1024 && ks == 4) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 4, true) }
-        else if (vl == 1024 && ks == 8) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 8, true) }
-        else if (vl == 1024 && ks == 10) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 10, true) }
-        else if (vl == 512 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL(512, 1, true) }
+        if (vl == 512 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL(512, 1, true) }
         else if (vl == 512 && ks == 2) { LAUNCH_GEMV_GELU_TANH_MUL(512, 2, true) }
         else if (vl == 512 && ks == 5) { LAUNCH_GEMV_GELU_TANH_MUL(512, 5, true) }
         else if (vl == 512 && ks == 4) { LAUNCH_GEMV_GELU_TANH_MUL(512, 4, true) }
@@ -303,13 +319,7 @@ inline void gemv_gelu_tanh_mul_fp8_pert_host_impl(
         else if (vl == 128 && ks == 10) { LAUNCH_GEMV_GELU_TANH_MUL(128, 10, true) }
         else { LAUNCH_GEMV_GELU_TANH_MUL(128, 1, true) }
     } else {
-        if (vl == 1024 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 1, false) }
-        else if (vl == 1024 && ks == 2) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 2, false) }
-        else if (vl == 1024 && ks == 5) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 5, false) }
-        else if (vl == 1024 && ks == 4) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 4, false) }
-        else if (vl == 1024 && ks == 8) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 8, false) }
-        else if (vl == 1024 && ks == 10) { LAUNCH_GEMV_GELU_TANH_MUL(1024, 10, false) }
-        else if (vl == 512 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL(512, 1, false) }
+        if (vl == 512 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL(512, 1, false) }
         else if (vl == 512 && ks == 2) { LAUNCH_GEMV_GELU_TANH_MUL(512, 2, false) }
         else if (vl == 512 && ks == 5) { LAUNCH_GEMV_GELU_TANH_MUL(512, 5, false) }
         else if (vl == 512 && ks == 4) { LAUNCH_GEMV_GELU_TANH_MUL(512, 4, false) }
@@ -375,7 +385,8 @@ inline void gemv_gelu_tanh_mul_fp8_pert_host(
 {
     int vl;
     int ks;
-    select_vl_ks_gemv_gelu_tanh_mul(N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks_gemv_gelu_tanh_mul(N, K, vl, ks, &dev);
     gemv_gelu_tanh_mul_fp8_pert_host(
         x_ptr,
         gemv_weight,
@@ -403,7 +414,8 @@ inline void gemv_gelu_tanh_mul_fp8_pert_host(
 {
     int vl;
     int ks;
-    select_vl_ks_gemv_gelu_tanh_mul(N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks_gemv_gelu_tanh_mul(N, K, vl, ks, &dev);
     gemv_gelu_tanh_mul_fp8_pert_host(
         x_ptr,
         gemv_weight,
@@ -577,13 +589,7 @@ inline void gemv_gelu_tanh_mul_y_fp8_pert_host_impl(
         });
 
     if (use_slm_cache) {
-        if (vl == 1024 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 1, true) }
-        else if (vl == 1024 && ks == 2) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 2, true) }
-        else if (vl == 1024 && ks == 5) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 5, true) }
-        else if (vl == 1024 && ks == 4) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 4, true) }
-        else if (vl == 1024 && ks == 8) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 8, true) }
-        else if (vl == 1024 && ks == 10) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 10, true) }
-        else if (vl == 512 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL_Y(512, 1, true) }
+        if (vl == 512 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL_Y(512, 1, true) }
         else if (vl == 512 && ks == 2) { LAUNCH_GEMV_GELU_TANH_MUL_Y(512, 2, true) }
         else if (vl == 512 && ks == 5) { LAUNCH_GEMV_GELU_TANH_MUL_Y(512, 5, true) }
         else if (vl == 512 && ks == 4) { LAUNCH_GEMV_GELU_TANH_MUL_Y(512, 4, true) }
@@ -602,13 +608,7 @@ inline void gemv_gelu_tanh_mul_y_fp8_pert_host_impl(
         else if (vl == 128 && ks == 10) { LAUNCH_GEMV_GELU_TANH_MUL_Y(128, 10, true) }
         else { LAUNCH_GEMV_GELU_TANH_MUL_Y(128, 1, true) }
     } else {
-        if (vl == 1024 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 1, false) }
-        else if (vl == 1024 && ks == 2) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 2, false) }
-        else if (vl == 1024 && ks == 5) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 5, false) }
-        else if (vl == 1024 && ks == 4) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 4, false) }
-        else if (vl == 1024 && ks == 8) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 8, false) }
-        else if (vl == 1024 && ks == 10) { LAUNCH_GEMV_GELU_TANH_MUL_Y(1024, 10, false) }
-        else if (vl == 512 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL_Y(512, 1, false) }
+        if (vl == 512 && ks == 1) { LAUNCH_GEMV_GELU_TANH_MUL_Y(512, 1, false) }
         else if (vl == 512 && ks == 2) { LAUNCH_GEMV_GELU_TANH_MUL_Y(512, 2, false) }
         else if (vl == 512 && ks == 5) { LAUNCH_GEMV_GELU_TANH_MUL_Y(512, 5, false) }
         else if (vl == 512 && ks == 4) { LAUNCH_GEMV_GELU_TANH_MUL_Y(512, 4, false) }
@@ -678,7 +678,8 @@ inline void gemv_gelu_tanh_mul_y_fp8_pert_host(
 {
     int vl;
     int ks;
-    select_vl_ks_gemv_gelu_tanh_mul(N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks_gemv_gelu_tanh_mul(N, K, vl, ks, &dev);
     gemv_gelu_tanh_mul_y_fp8_pert_host(
         x_ptr,
         gemv_weight,
@@ -706,7 +707,8 @@ inline void gemv_gelu_tanh_mul_y_fp8_pert_host(
 {
     int vl;
     int ks;
-    select_vl_ks_gemv_gelu_tanh_mul(N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks_gemv_gelu_tanh_mul(N, K, vl, ks, &dev);
     gemv_gelu_tanh_mul_y_fp8_pert_host(
         x_ptr,
         gemv_weight,

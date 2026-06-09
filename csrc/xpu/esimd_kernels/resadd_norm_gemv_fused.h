@@ -178,7 +178,8 @@ inline void resadd_norm_gemv_fp8_pert_host(
     sycl::queue& q)
 {
     int vl, ks;
-    select_vl_ks(N, K, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks(N, K, vl, ks, &dev);
 
     int global = N * ks;
     int local = ks;

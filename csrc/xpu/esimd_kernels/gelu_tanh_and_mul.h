@@ -47,7 +47,12 @@ inline void normalize_gelu_tanh_and_mul_vl_ks(uint32_t half_cols, int& vl, int& 
 // Heuristic selector for Gemma4-like GeGLU shapes. Unlike GEMV, ks is not a
 // reduction split here; it is the per-row thread count used to stripe chunks of
 // the D dimension across a work-group.
-inline void select_vl_ks_gelu_tanh_and_mul(uint32_t rows, uint32_t cols, bool is_bf16, int& vl, int& ks) {
+inline void select_vl_ks_gelu_tanh_and_mul_xe3(
+    uint32_t rows,
+    uint32_t cols,
+    bool is_bf16,
+    int& vl,
+    int& ks) {
     uint32_t half_cols = cols / 2;
 
     if (rows <= 1) {
@@ -71,6 +76,34 @@ inline void select_vl_ks_gelu_tanh_and_mul(uint32_t rows, uint32_t cols, bool is
     }
 
     normalize_gelu_tanh_and_mul_vl_ks(half_cols, vl, ks);
+}
+
+inline void select_vl_ks_gelu_tanh_and_mul_xe2(
+    uint32_t rows,
+    uint32_t cols,
+    bool is_bf16,
+    int& vl,
+    int& ks) {
+    select_vl_ks_gelu_tanh_and_mul_xe3(rows, cols, is_bf16, vl, ks);
+}
+
+inline void select_vl_ks_gelu_tanh_and_mul(
+    uint32_t rows,
+    uint32_t cols,
+    bool is_bf16,
+    int& vl,
+    int& ks,
+    const sycl::device* dev = nullptr) {
+    if (dev != nullptr) {
+        auto arch = dev->get_info<sycl::ext::oneapi::experimental::info::device::architecture>();
+        if (is_ptl_architecture_device(arch)) {
+            select_vl_ks_gelu_tanh_and_mul_xe3(rows, cols, is_bf16, vl, ks);
+        } else {
+            select_vl_ks_gelu_tanh_and_mul_xe2(rows, cols, is_bf16, vl, ks);
+        }
+        return;
+    }
+    select_vl_ks_gelu_tanh_and_mul_xe2(rows, cols, is_bf16, vl, ks);
 }
 
 template<typename scalar_t, int VL>
@@ -186,6 +219,7 @@ inline void gelu_tanh_and_mul_host(
 {
     int vl = 128;
     int ks = 1;
-    select_vl_ks_gelu_tanh_and_mul(rows, cols, is_bf16, vl, ks);
+    auto dev = q.get_device();
+    select_vl_ks_gelu_tanh_and_mul(rows, cols, is_bf16, vl, ks, &dev);
     gelu_tanh_and_mul_host(input_ptr, output_ptr, rows, cols, vl, ks, is_bf16, q);
 }
