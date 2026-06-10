@@ -1,3 +1,5 @@
+#pragma once
+
 #include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>

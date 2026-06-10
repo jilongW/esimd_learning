@@ -31,6 +31,34 @@ ext_modules = [
     )
 ]
 
+ext_modules.append(
+    SyclExtension(
+        name="sycl_tla_gemv",
+        sources=[
+            "csrc/xpu/sycl_tla_gemv.cc",
+        ],
+        include_dirs=[
+            root / "include",
+            root / "csrc",
+            Path("/home/edgeai/sycl-tla/include"),
+            Path("/home/edgeai/sycl-tla/examples/common"),
+            Path("/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/triton/backends/nvidia/include"),
+        ],
+        extra_compile_args={
+            "cxx": ["-O3", "-std=c++17"],
+            "sycl": [
+                "-fsycl",
+                "-ffast-math",
+                "-fsycl-device-code-split=per_kernel",
+                "-fsycl-targets=spir64_gen",
+                f"-I{torch_include}",
+            ],
+        },
+        extra_link_args=["-Wl,-rpath,$ORIGIN/../../torch/lib"],
+        py_limited_api=False,
+    )
+)
+
 ### FP8 GEMM (M>1) — uses DPAS, compile with JIT only (no AOT to avoid device mismatch)
 ext_modules.append(
     SyclExtension(

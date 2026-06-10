@@ -372,6 +372,26 @@ def esimd_gemm_fp8_pert(
         weight_scale,
         output, vl, ks)
 
+
+def esimd_gemm_fp16(
+    input: torch.Tensor,
+    weight: torch.Tensor,
+    output: torch.Tensor,
+    vl: int | None = None,
+    ks: int | None = None,
+) -> torch.Tensor:
+    """FP16 GEMM.
+
+    input: [M, K] fp16
+    weight: [N, K] fp16
+    output: [M, N] fp16
+    """
+    if (vl is None) != (ks is None):
+        raise ValueError("vl and ks must both be provided or both be omitted")
+    if vl is None and ks is None:
+        vl, ks = 0, 0
+    return _ops.esimd_gemm_fp16(input, weight, output, vl, ks)
+
 def esimd_resadd_norm_gemv_fp8_pert(
     hidden_states: torch.Tensor,
     residual: torch.Tensor,

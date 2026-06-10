@@ -11,6 +11,10 @@ TORCH_LIBRARY_FRAGMENT(custom_esimd_kernels_vllm, m) {
   m.def("esimd_gemm_fp8_pert(Tensor input, Tensor weight, Tensor weight_scale, "
         "Tensor output, int vl, int ks) -> Tensor");
   m.impl("esimd_gemm_fp8_pert", torch::kXPU, &esimd_gemm_fp8_pert);
+
+  // FP16 GEMM: input [M, K] fp16, weight [N, K] fp16, output [M, N] fp16
+  m.def("esimd_gemm_fp16(Tensor input, Tensor weight, Tensor output, int vl, int ks) -> Tensor");
+  m.impl("esimd_gemm_fp16", torch::kXPU, &esimd_gemm_fp16);
 }
 
 PyMODINIT_FUNC PyInit_custom_esimd_kernels_gemm() {

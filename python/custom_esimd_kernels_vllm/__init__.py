@@ -18,6 +18,7 @@ from .ops import (
     esimd_gelu_tanh_and_mul,
     select_gelu_tanh_and_mul_vl_ks,
     esimd_gemm_fp8_pert,
+    esimd_gemm_fp16,
     esimd_resadd_norm_gemv_fp8_pert,
 )
 
@@ -38,6 +39,7 @@ __all__ = [
     "esimd_gelu_tanh_and_mul",
     "select_gelu_tanh_and_mul_vl_ks",
     "esimd_gemm_fp8_pert",
+    "esimd_gemm_fp16",
     "esimd_resadd_norm_gemv_fp8_pert",
 ]
 

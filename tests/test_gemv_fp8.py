@@ -5,8 +5,10 @@ Correctness: compare against FP16 dequant reference (torch matmul).
 Performance: benchmark Qwen3-Next-80B-A3B TP4 projection shapes.
 """
 import gc
+import os
 import torch
 import time
+
 from vllm.platforms import current_platform
 
 device = torch.device("xpu")
@@ -108,6 +110,27 @@ def _run_gemv_auto(input_t, weight_fp8, scale, output):
 
     esimd_gemv_fp8(input_t, weight_fp8, scale, output)
     return output
+
+
+def _get_sycl_tla_gemv_fn():
+    module_name = os.getenv("SYCL_TLA_GEMV_MODULE", "sycl_tla_gemv")
+    symbol_name = os.getenv("SYCL_TLA_GEMV_SYMBOL", "gemv_fp8")
+
+    try:
+        module = __import__(module_name, fromlist=[symbol_name])
+    except ImportError:
+        return None
+
+    gemv_fn = getattr(module, symbol_name, None)
+    if gemv_fn is None:
+        return None
+    return gemv_fn
+
+
+def _run_sycl_tla_gemv_auto(input_t, weight_fp8, scale, output):
+    gemv_fn = _get_sycl_tla_gemv_fn()
+    result = gemv_fn(input_t, weight_fp8, scale, output)
+    return output if result is None else result
 
 
 def _benchmark_one(run_fn, output_fn, iters: int) -> tuple[float, list[float]]:
@@ -540,6 +563,71 @@ def test_esimd_vs_vllm():
                 f"{' '.join(f'{cfg[0]}:{cfg[1]}={latency:0.2f}us' for cfg, latency in pert_candidates)}"
             )
             assert pert_rule_in_search, f"pert auto cfg {pert_rule_cfg} missing from candidate list"
+
+
+def test_sycl_tla_vs_esimd():
+    """Compare a SYCL*TLA GEMV binding against the retained ESIMD baseline.
+
+    This test is skipped unless SYCL_TLA_GEMV_MODULE/SYCL_TLA_GEMV_SYMBOL
+    point at a Python-exposed SYCL*TLA GEMV entry with the same call shape
+    as esimd_gemv_fp8(input, weight, scale, output).
+    """
+
+    sycl_tla_gemv = _get_sycl_tla_gemv_fn()
+    if sycl_tla_gemv is None:
+        print(
+            "SYCL*TLA GEMV binding is not available: "
+            f"import {os.getenv('SYCL_TLA_GEMV_MODULE', 'sycl_tla_gemv')}."
+            f"{os.getenv('SYCL_TLA_GEMV_SYMBOL', 'gemv_fp8')} failed or symbol missing"
+        )
+        return
+
+    print("\n--- SYCL*TLA vs ESIMD GEMV ---")
+    print(f"binding={sycl_tla_gemv.__module__}.{sycl_tla_gemv.__name__}")
+    print(f"{'Shape':<30} {'N':>6} {'K':>6} | {'SYCL*TLA us':>11} {'ESIMD us':>9} {'max_diff':>10} {'rel_err':>9}")
+    print("-" * 82)
+
+    shapes = [
+        (3072, 2560),
+        (2560, 2048),
+        (20480, 2560),
+        (2560, 10240),
+    ]
+
+    for N, K in shapes:
+        weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
+        weight_fp8 = weight_ref.to(torch.float8_e4m3fn)
+        scale = torch.randn(N, dtype=torch.float16, device=device) * 0.1
+        input_t = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
+
+        sycl_output = torch.zeros(1, N, dtype=torch.float16, device=device)
+        esimd_output = torch.zeros(1, N, dtype=torch.float16, device=device)
+
+        _run_sycl_tla_gemv_auto(input_t, weight_fp8, scale, sycl_output)
+        _run_gemv_auto(input_t, weight_fp8, scale, esimd_output)
+
+        max_diff = (sycl_output.float() - esimd_output.float()).abs().max().item()
+        ref_max = esimd_output.float().abs().max().item()
+        rel_err = (max_diff / ref_max) if ref_max > 1e-6 else 0.0
+
+        sycl_us, _ = _benchmark_one(
+            lambda index: _run_sycl_tla_gemv_auto(input_t, weight_fp8, scale, sycl_output),
+            lambda: sycl_output,
+            50,
+        )
+        esimd_us, _ = _benchmark_one(
+            lambda index: _run_gemv_auto(input_t, weight_fp8, scale, esimd_output),
+            lambda: esimd_output,
+            50,
+        )
+
+        print(
+            f"{'GEMV':<30} {N:>6} {K:>6} | {sycl_us:>11.2f} {esimd_us:>9.2f} {max_diff:>10.4f} {rel_err:>9.4f}"
+        )
+
+        assert max_diff < 1.0 or rel_err < 0.05, (
+            f"SYCL*TLA vs ESIMD mismatch for N={N}, K={K}: max_diff={max_diff:.4f}, rel_err={rel_err:.4f}"
+        )
 
 
 def benchmark_fused():

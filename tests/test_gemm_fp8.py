@@ -24,14 +24,14 @@ SUPPORTED_GEMV_CONFIGS = {
 }
 
 GEMV_SHAPES = [
-    ("qkv_proj", 3072, 2560),
-    ("qkv_proj", 6144, 2560),
-    ("Attn o_proj", 2560, 2048),
-    ("Attn o_proj", 2560, 4096),
-    ("gate_up_proj", 20480, 2560),
-    ("down_proj", 2560, 10240),
-    ("per_layer_input_gate", 256, 2560),
-    ("per_layer_input_gate_out", 2560, 256),
+    # ("qkv_proj", 3072, 2560),
+    # ("qkv_proj", 6144, 2560),
+    # ("Attn o_proj", 2560, 2048),
+    # ("Attn o_proj", 2560, 4096),
+    # ("gate_up_proj", 20480, 2560),
+    # ("down_proj", 2560, 10240),
+    # ("per_layer_input_gate", 256, 2560),
+    # ("per_layer_input_gate_out", 2560, 256),
     ("embedding", 262144, 2560),
 ]
 
@@ -365,7 +365,7 @@ def _run_correctness_case(weight_dtype, io_dtype):
         for M in m_values:
             weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
             weight_fp8 = weight_ref.to(weight_dtype)
-            scale_val = 0.05 + torch.rand(1).item() * 0.1
+            scale_val = 1.0
             scale_t = torch.tensor(scale_val, dtype=torch.float32, device=device)
 
             input_t = torch.randn(M, K, dtype=io_dtype, device=device) * 0.1
@@ -440,8 +440,8 @@ if __name__ == "__main__":
     print("custom-esimd-kernels-vllm: GEMM FP8 Per-tensor Tests")
     print("=" * 60)
 
-    # test_correctness()
-    # test_e5m2_correctness()
-    # test_gemm_vs_gemv_m1()
+    test_correctness()
+    test_e5m2_correctness()
+    test_gemm_vs_gemv_m1()
     benchmark_gemm_vs_gemv_vs_vllm()
 

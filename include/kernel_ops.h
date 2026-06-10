@@ -79,6 +79,12 @@ at::Tensor esimd_gemm_fp8_pert(
     at::Tensor input, at::Tensor weight, at::Tensor weight_scale,
     at::Tensor output, int64_t vl, int64_t ks);
 
+// FP16 GEMM: input/output [M, K]/[M, N] fp16, weight [N, K] fp16.
+// Auto-selects vl/ks when vl=0 and ks=0.
+at::Tensor esimd_gemm_fp16(
+    at::Tensor input, at::Tensor weight,
+    at::Tensor output, int64_t vl, int64_t ks);
+
 // Fused ResidualAdd + RMSNorm + FP8 GEMV
 at::Tensor esimd_resadd_norm_gemv_fp8_pert(
     at::Tensor hidden_states, at::Tensor residual, at::Tensor norm_weight,
