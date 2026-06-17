@@ -284,7 +284,7 @@ COMMON_HIPCC_FLAGS = [
 
 _COMMON_SYCL_FLAGS = [
     '-fsycl',
-    '-fsycl-targets=spir64_gen,spir64',
+    '-fsycl-targets=spir64_gen',
 ]
 
 def _get_sycl_arch_list():
@@ -301,6 +301,8 @@ _SYCL_DLINK_FLAGS = [
     *_COMMON_SYCL_FLAGS,
     '-fsycl-link',
     '--offload-compress',
+    '-Xspirv-translator',
+    '-spirv-ext=+SPV_INTEL_split_barrier',
     f'-Xs "-device {_get_sycl_arch_list()}"',
 ]
 

@@ -10,6 +10,35 @@ root = Path(__file__).parent.resolve()
 
 import torch
 torch_include = str(Path(torch.__file__).parent / "include")
+
+# Allow external CUTLASS/SYCL-TLA source override (compatible with vllm-xpu-kernels style).
+sycl_tla_root = Path(os.environ.get("VLLM_CUTLASS_SRC_DIR", "/home/edgeai/sycl-tla")).resolve()
+sycl_tla_include = sycl_tla_root / "include"
+sycl_tla_examples_common = sycl_tla_root / "examples" / "common"
+sycl_tla_tools_util_include = sycl_tla_root / "tools" / "util" / "include"
+sycl_tla_applications = sycl_tla_root / "applications"
+
+required_sycl_tla_dirs = [
+    sycl_tla_include,
+    sycl_tla_examples_common,
+    sycl_tla_tools_util_include,
+    sycl_tla_applications,
+]
+missing_sycl_tla_dirs = [str(path) for path in required_sycl_tla_dirs if not path.exists()]
+if missing_sycl_tla_dirs:
+    raise RuntimeError(
+        "Missing SYCL-TLA/CUTLASS include directories: "
+        + ", ".join(missing_sycl_tla_dirs)
+        + ". Set VLLM_CUTLASS_SRC_DIR to a valid sycl-tla/cutlass source tree."
+    )
+
+cutlass_common_defines = [
+    "-DCUTLASS_ENABLE_HEADERS_ONLY",
+    "-DCUTLASS_ENABLE_SYCL",
+    "-DSYCL_INTEL_TARGET",
+    "-DCUTLASS_VERSIONS_GENERATED",
+]
+
 ext_modules = [
     SyclExtension(
         name="custom_esimd_kernels_vllm.custom_esimd_kernels",
@@ -31,26 +60,32 @@ ext_modules = [
     )
 ]
 
+
+### CUTLASS GEMM extension
 ext_modules.append(
     SyclExtension(
-        name="sycl_tla_gemv",
+        name="custom_esimd_kernels_vllm.custom_esimd_kernels_cutlass_gemm",
         sources=[
-            "csrc/xpu/sycl_tla_gemv.cc",
+            "csrc/xpu/torch_extension_cutlass_gemm.sycl",
         ],
         include_dirs=[
             root / "include",
             root / "csrc",
-            Path("/home/edgeai/sycl-tla/include"),
-            Path("/home/edgeai/sycl-tla/examples/common"),
-            Path("/home/edgeai/miniforge3/envs/down/lib/python3.12/site-packages/triton/backends/nvidia/include"),
+            sycl_tla_include,
+            sycl_tla_examples_common,
+            sycl_tla_tools_util_include,
+            sycl_tla_applications,
         ],
         extra_compile_args={
-            "cxx": ["-O3", "-std=c++17"],
+            "cxx": ["-O3", "-std=c++17", *cutlass_common_defines],
             "sycl": [
                 "-fsycl",
                 "-ffast-math",
                 "-fsycl-device-code-split=per_kernel",
                 "-fsycl-targets=spir64_gen",
+                "-Xs", "-device ptl -options -doubleGRF",
+                "-fno-sycl-instrument-device-code",
+                *cutlass_common_defines,
                 f"-I{torch_include}",
             ],
         },
@@ -59,7 +94,6 @@ ext_modules.append(
     )
 )
 
-### FP8 GEMM (M>1) — uses DPAS, compile with JIT only (no AOT to avoid device mismatch)
 ext_modules.append(
     SyclExtension(
         name="custom_esimd_kernels_vllm.custom_esimd_kernels_gemm",
@@ -81,6 +115,7 @@ ext_modules.append(
         py_limited_api=False,
     )
 )
+
 ### FP8 GEMM kernels
 
 setup(

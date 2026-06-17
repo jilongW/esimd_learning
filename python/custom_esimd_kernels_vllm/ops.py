@@ -71,6 +71,43 @@ def esimd_gemv_fp8_pert(
     """
     return _ops.esimd_gemv_fp8_pert(input, weight, weight_scale, output, N, K, vl, ks)
 
+
+def cutlass_gemm_sycl_tla(
+    input_A: torch.Tensor,
+    input_B: torch.Tensor,
+    output: torch.Tensor,
+    bias: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """SYCL-TLA example GEMM wrapper (fixed high-throughput tile config).
+
+    input_A: [M, K] fp16
+    input_B: [N, K] fp16 (row-major buffer interpreted as ColumnMajor B)
+    output: [M, N] fp16
+    bias: currently unsupported, must be None
+    """
+    if bias is not None:
+        raise ValueError("cutlass_gemm_sycl_tla currently does not support bias")
+
+    if input_A.dim() != 2:
+        raise ValueError("input_A must be 2D [M, K]")
+    if input_B.dim() != 2:
+        raise ValueError("input_B must be 2D [N, K]")
+    if output.dim() != 2:
+        raise ValueError("output must be 2D [M, N]")
+
+    m = int(input_A.size(0))
+    k = int(input_A.size(1))
+    n = int(input_B.size(0))
+
+    if int(input_B.size(1)) != k:
+        raise ValueError("input_B.size(1) must equal input_A.size(1)")
+    if int(output.size(0)) != m:
+        raise ValueError("output.size(0) must equal input_A.size(0)")
+    if int(output.size(1)) != n:
+        raise ValueError("output.size(1) must equal input_B.size(0)")
+
+    return _ops.cutlass_gemm_sycl_tla(input_A, input_B, None, output, n, k)
+
 def esimd_fused_add_rms_norm_batched(
     hidden_states: torch.Tensor,
     residual: torch.Tensor,
