@@ -3,6 +3,7 @@ import torch
 from . import custom_esimd_kernels
 from . import custom_esimd_kernels_gemm
 from . import custom_esimd_kernels_cutlass_gemm
+from . import custom_esimd_kernels_cutlass_gemm_fp8
 
 from .ops import (
     esimd_gemv_fp8,
@@ -22,6 +23,7 @@ from .ops import (
     esimd_gemm_fp16,
     esimd_resadd_norm_gemv_fp8_pert,
     cutlass_gemm_sycl_tla,
+    cutlass_gemm_sycl_tla_fp8,
 )
 
 __all__ = [
@@ -45,6 +47,7 @@ __all__ = [
     "esimd_gemm_fp16",
     "esimd_resadd_norm_gemv_fp8_pert",
     "cutlass_gemm_sycl_tla",
+    "cutlass_gemm_sycl_tla_fp8",
 ]
 
 

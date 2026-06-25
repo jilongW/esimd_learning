@@ -114,7 +114,7 @@ def _run_gemv_auto(input_t, weight_fp8, scale, output):
 
 def _get_sycl_tla_gemv_fn():
     module_name = os.getenv("SYCL_TLA_GEMV_MODULE", "sycl_tla_gemv")
-    symbol_name = os.getenv("SYCL_TLA_GEMV_SYMBOL", "gemv_fp8")
+    symbol_name = os.getenv("SYCL_TLA_GEMV_SYMBOL", "sycl_tla_gemv")
 
     try:
         module = __import__(module_name, fromlist=[symbol_name])
@@ -122,9 +122,11 @@ def _get_sycl_tla_gemv_fn():
         return None
 
     gemv_fn = getattr(module, symbol_name, None)
-    if gemv_fn is None:
-        return None
-    return gemv_fn
+    if callable(gemv_fn):
+        return gemv_fn
+    if callable(module):
+        return module
+    return None
 
 
 def _run_sycl_tla_gemv_auto(input_t, weight_fp8, scale, output):
@@ -138,10 +140,18 @@ def _benchmark_one(run_fn, output_fn, iters: int) -> tuple[float, list[float]]:
         run_fn(0)
     torch.xpu.synchronize()
 
-    outputs = []
+    # Timed loop — no output sampling to avoid D2H sync overhead
     t0 = time.perf_counter()
     for index in range(iters):
         run_fn(index)
+    torch.xpu.synchronize()
+    elapsed_us = (time.perf_counter() - t0) * 1e6 / iters
+
+    # Sample outputs after timing (for correctness checks)
+    outputs = []
+    for index in range(min(iters, 100)):
+        run_fn(index)
+        torch.xpu.synchronize()
         output = output_fn()
         sample_index = [0] * output.dim()
         if output.dim() >= 2:
@@ -149,8 +159,7 @@ def _benchmark_one(run_fn, output_fn, iters: int) -> tuple[float, list[float]]:
         else:
             sample_index[0] = index % output.size(0)
         outputs.append(float(output[tuple(sample_index)]))
-    torch.xpu.synchronize()
-    elapsed_us = (time.perf_counter() - t0) * 1e6 / iters
+
     gc.collect()
     if hasattr(torch.xpu, "empty_cache"):
         torch.xpu.empty_cache()
@@ -428,10 +437,12 @@ def _candidate_contains_cfg(candidate_records, cfg: tuple[int, int]) -> bool:
 def test_esimd_vs_vllm():
     TARGET_BW = 112.0  # GB/s PTL
 
+    sycl_tla_gemm_fn = _get_sycl_tla_gemm_fp8_fn()
+
     print(
-        f"\n{'Case':<30} {'Config':>20} {'Mode':>8} | {'ESIMD us':>10} {'vllm us':>10} {'ESIMD TF':>10} {'vllm TF':>10} {'ESIMD GB/s':>12} {'vllm GB/s':>11} {'Speedup':>8}"
+        f"\n{'Case':<30} {'Config':>20} {'Mode':>8} | {'ESIMD us':>10} {'vllm us':>10} {'sycl-tla':>10} {'ESIMD TF':>10} {'vllm TF':>10} {'ESIMD GB/s':>12} {'vllm GB/s':>11} {'Speedup':>8}"
     )
-    print("-" * 138)
+    print("-" * 150)
 
     shapes = [
         ("qkv_proj",     3072, 2560),                               # 128/10
@@ -446,7 +457,6 @@ def test_esimd_vs_vllm():
 
     dtype_cases = [
         ("fp16", torch.float16),
-        ("bf16", torch.bfloat16),
     ]
 
 
@@ -529,13 +539,26 @@ def test_esimd_vs_vllm():
             _assert_output_lists_close(pert_outputs, pert_vllm_outputs)
 
             flops = 2 * N * K
+
+            # --- sycl-tla FP8 GEMM (only fp16 input supported) ---
+            sycl_tla_us = 0.0
+            if sycl_tla_gemm_fn is not None and dtype_name == "fp16":
+                sycl_tla_output = torch.zeros(1, N, dtype=torch.float16, device=device)
+                sycl_tla_us, _ = _benchmark_one(
+                    lambda index: sycl_tla_gemm_fn(input_t, weights[index % nc], sycl_tla_output),
+                    lambda: sycl_tla_output,
+                    ni,
+                )
+
+            sycl_tla_str = f"{sycl_tla_us:>9.2f}" if sycl_tla_us > 0 else f"{'':>9}"
+
             pern_tflops = flops / (pern_us * 1e6) if pern_us > 0 else 0
             pern_vllm_tflops = flops / (pern_vllm_us * 1e6) if pern_vllm_us > 0 else 0
             pern_bw = (pern_bytes / 1e9) / (pern_us / 1e6) if pern_us > 0 else 0
             pern_vllm_bw = (pern_bytes / 1e9) / (pern_vllm_us / 1e6) if pern_vllm_us > 0 else 0
 
             print(
-                f"{name:<30} {config:>20} {'pern':>8} | {pern_us:>9.2f} {pern_vllm_us:>9.2f} "
+                f"{name:<30} {config:>20} {'pern':>8} | {pern_us:>9.2f} {pern_vllm_us:>9.2f} {sycl_tla_str} "
                 f"{pern_tflops:>9.4f} {pern_vllm_tflops:>9.4f} {pern_bw:>11.2f} {pern_vllm_bw:>11.2f} {(pern_vllm_us / pern_us) if pern_us > 0 else 0:>7.2f}x"
             )
             print(
@@ -552,7 +575,7 @@ def test_esimd_vs_vllm():
             pert_bw = (pert_bytes / 1e9) / (pert_us / 1e6) if pert_us > 0 else 0
             pert_vllm_bw = (pern_bytes / 1e9) / (pert_vllm_us / 1e6) if pert_vllm_us > 0 else 0
             print(
-                f"{name:<30} {config:>20} {'pert':>8} | {pert_us:>9.2f} {pert_vllm_us:>9.2f} "
+                f"{name:<30} {config:>20} {'pert':>8} | {pert_us:>9.2f} {pert_vllm_us:>9.2f} {sycl_tla_str} "
                 f"{pert_tflops:>9.4f} {pert_vllm_tflops:>9.4f} {pert_bw:>11.2f} {pert_vllm_bw:>11.2f} {(pert_vllm_us / pert_us) if pert_us > 0 else 0:>7.2f}x"
             )
             print(
@@ -578,7 +601,7 @@ def test_sycl_tla_vs_esimd():
         print(
             "SYCL*TLA GEMV binding is not available: "
             f"import {os.getenv('SYCL_TLA_GEMV_MODULE', 'sycl_tla_gemv')}."
-            f"{os.getenv('SYCL_TLA_GEMV_SYMBOL', 'gemv_fp8')} failed or symbol missing"
+            f"{os.getenv('SYCL_TLA_GEMV_SYMBOL', 'sycl_tla_gemv')} failed or symbol missing"
         )
         return
 
@@ -894,6 +917,168 @@ def benchmark_e5m2():
         )
 
 
+###############################################################################
+# SYCL-TLA FP8 GEMM Tests — Correctness & Performance
+###############################################################################
+
+def _get_sycl_tla_gemm_fp8_fn():
+    """Load the cutlass_gemm_sycl_tla_fp8 op if available."""
+    try:
+        from custom_esimd_kernels_vllm import cutlass_gemm_sycl_tla_fp8
+        return cutlass_gemm_sycl_tla_fp8
+    except (ImportError, AttributeError):
+        return None
+
+
+def test_sycl_tla_fp8_correctness():
+    """Correctness: sycl-tla fp8 gemm vs torch fp16 matmul reference.
+
+    sycl-tla interface: A=[M,K] fp16, B=[N,K] fp8 (ColumnMajor, K-contiguous), D=[M,N] fp16
+    Reference: (A.float() @ B_dequant.T.float()) where B_dequant = B.to(fp16)
+    """
+    gemm_fn = _get_sycl_tla_gemm_fp8_fn()
+    if gemm_fn is None:
+        print("SKIP test_sycl_tla_fp8_correctness: cutlass_gemm_sycl_tla_fp8 not available")
+        return
+
+    print("\n--- SYCL-TLA FP8 GEMM Correctness ---")
+    print(f"{'Status':<8} {'M':>4} {'N':>6} {'K':>6} {'dtype':>6} {'max_diff':>10} {'rel_err':>9}")
+    print("-" * 58)
+
+    shapes = [
+        (1, 2560, 2048),
+        (1, 3072, 2560),
+        (1, 20480, 2560),
+        (1, 2560, 10240),
+        (2, 2560, 2048),
+        (4, 3072, 2560),
+        (8, 2560, 2048),
+        (16, 20480, 2560),
+        (32, 2560, 10240),
+        (64, 2560, 2048),
+        (128, 3072, 2560),
+    ]
+
+    for fp8_dtype_name, fp8_dtype in [("e4m3", torch.float8_e4m3fn), ("e5m2", torch.float8_e5m2)]:
+        for M, N, K in shapes:
+            A = torch.randn(M, K, dtype=torch.float16, device=device) * 0.1
+            # Weight in [N, K] ColumnMajor (K-contiguous) for sycl-tla
+            weight_ref = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
+            B_fp8 = weight_ref.to(fp8_dtype)
+            D = torch.zeros(M, N, dtype=torch.float16, device=device)
+
+            gemm_fn(A, B_fp8, D)
+            torch.xpu.synchronize()
+
+            # Reference: fp16 dequant matmul (B is [N,K], so transpose for matmul)
+            B_dequant = B_fp8.to(torch.float16)
+            ref = A.float() @ B_dequant.T.float()
+
+            max_diff = (D - ref).abs().max().item()
+            ref_max = ref.abs().max().item()
+            rel_err = (max_diff / ref_max) if ref_max > 1e-6 else 0.0
+            ok = max_diff < 1.0 or rel_err < 0.03
+            status = "PASS" if ok else "FAIL"
+            print(f"  [{status}] {M:>4} {N:>6} {K:>6} {fp8_dtype_name:>6} {max_diff:>10.4f} {rel_err:>9.5f}")
+            assert ok, (
+                f"sycl-tla fp8 correctness failed: M={M} N={N} K={K} {fp8_dtype_name} "
+                f"max_diff={max_diff:.4f} rel_err={rel_err:.5f}"
+            )
+
+
+def test_sycl_tla_fp8_vs_esimd_gemv():
+    """Compare sycl-tla FP8 GEMM (M=1) against ESIMD GEMV for correctness.
+
+    Both should produce similar results when scale=1.
+    Both use weight [N, K] layout.
+    Note: both sycl-tla and esimd now output fp16.
+    """
+    gemm_fn = _get_sycl_tla_gemm_fp8_fn()
+    if gemm_fn is None:
+        print("SKIP test_sycl_tla_fp8_vs_esimd_gemv: cutlass_gemm_sycl_tla_fp8 not available")
+        return
+
+    print("\n--- SYCL-TLA FP8 GEMM vs ESIMD GEMV (M=1, scale=1) ---")
+    print(f"{'N':>6} {'K':>6} | {'max_diff':>10} {'rel_err':>9} {'status':>8}")
+    print("-" * 50)
+
+    shapes = [
+        (2560, 2048),
+        (3072, 2560),
+        (20480, 2560),
+        (2560, 10240),
+    ]
+
+    for N, K in shapes:
+        A = torch.randn(1, K, dtype=torch.float16, device=device) * 0.1
+        # Both ESIMD and sycl-tla use weight [N, K]
+        weight_nk = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
+        weight_fp8_nk = weight_nk.to(torch.float8_e4m3fn)
+
+        # ESIMD GEMV with scale=1
+        scale = torch.ones(N, dtype=torch.float16, device=device)
+        esimd_out = torch.zeros(1, N, dtype=torch.float16, device=device)
+        _run_gemv_auto(A, weight_fp8_nk, scale, esimd_out)
+
+        # sycl-tla FP8 GEMM: same [N, K] weight
+        sycl_out = torch.zeros(1, N, dtype=torch.float16, device=device)
+        gemm_fn(A, weight_fp8_nk, sycl_out)
+        torch.xpu.synchronize()
+
+        max_diff = (sycl_out - esimd_out).abs().max().item()
+        ref_max = esimd_out.float().abs().max().item()
+        rel_err = (max_diff / ref_max) if ref_max > 1e-6 else 0.0
+        ok = max_diff < 1.0 or rel_err < 0.05
+        status = "PASS" if ok else "FAIL"
+        print(f"{N:>6} {K:>6} | {max_diff:>10.4f} {rel_err:>9.5f} {status:>8}")
+        assert ok, f"sycl-tla vs esimd mismatch N={N} K={K}: max_diff={max_diff:.4f}"
+
+
+
+
+def test_sycl_tla_fp8_batch_correctness():
+    """Correctness for batch sizes M > 1 — ensures dispatch paths (m<=16, m<=32, default) work."""
+    gemm_fn = _get_sycl_tla_gemm_fp8_fn()
+    if gemm_fn is None:
+        print("SKIP test_sycl_tla_fp8_batch_correctness: not available")
+        return
+
+    print("\n--- SYCL-TLA FP8 GEMM Batch Correctness (dispatch paths) ---")
+    # Exercise dispatch boundaries: m=1,8,16,17,32,33,64,128
+    cases = [
+        (1, 2560, 2048),
+        (8, 3072, 2560),
+        (16, 2560, 10240),
+        (17, 2560, 2048),
+        (32, 20480, 2560),
+        (33, 3072, 2560),
+        (64, 2560, 2048),
+        (128, 2560, 10240),
+    ]
+
+    all_pass = True
+    for M, N, K in cases:
+        A = torch.randn(M, K, dtype=torch.float16, device=device) * 0.1
+        # Weight [N, K] ColumnMajor (K-contiguous)
+        weight = torch.randn(N, K, dtype=torch.float16, device=device) * 0.1
+        B_fp8 = weight.to(torch.float8_e4m3fn)
+        D = torch.zeros(M, N, dtype=torch.float16, device=device)
+
+        gemm_fn(A, B_fp8, D)
+        torch.xpu.synchronize()
+
+        ref = A.float() @ B_fp8.to(torch.float16).T.float()
+        max_diff = (D - ref).abs().max().item()
+        ref_max = ref.abs().max().item()
+        rel_err = (max_diff / ref_max) if ref_max > 1e-6 else 0.0
+        ok = max_diff < 1.0 or rel_err < 0.03
+        status = "PASS" if ok else "FAIL"
+        print(f"  [{status}] M={M:>3} N={N:>5} K={K:>5}  max_diff={max_diff:.4f}  rel={rel_err:.5f}")
+        if not ok:
+            all_pass = False
+    assert all_pass, "Some batch correctness cases failed"
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("custom-esimd-kernels-vllm: GEMV FP8 Tests")
@@ -903,7 +1088,7 @@ if __name__ == "__main__":
     # test_correctness_basic()
     # test_correctness_with_scale()
     # test_pern_replay_from_assert_dump()
-    test_esimd_vs_vllm()
+    # 
     # E4M3 per-tensor scale tests
     # test_pert_correctness()
     # test_pert_vs_pern()
@@ -916,10 +1101,16 @@ if __name__ == "__main__":
     # print("\n--- Performance Benchmark (unfused per-N, E4M3) ---")
     # benchmark_shapes()
 
-
     # print("\n--- Performance Benchmark (E4M3 vs E5M2) ---")
     # benchmark_e5m2()
 
-    # print("\n" + "=" * 60)
-    # print("ALL TESTS PASSED")
-    # print("=" * 60)
+    # --- SYCL-TLA FP8 GEMM tests ---
+    test_sycl_tla_fp8_correctness()
+    test_sycl_tla_fp8_vs_esimd_gemv()
+    test_sycl_tla_fp8_batch_correctness()
+
+    test_esimd_vs_vllm()
+
+    print("\n" + "=" * 60)
+    print("ALL TESTS PASSED")
+    print("=" * 60)

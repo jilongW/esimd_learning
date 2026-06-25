@@ -116,7 +116,38 @@ ext_modules.append(
     )
 )
 
-### FP8 GEMM kernels
+### FP8 GEMM kernels (SYCL-TLA CUTLASS fp8 weight GEMM)
+ext_modules.append(
+    SyclExtension(
+        name="custom_esimd_kernels_vllm.custom_esimd_kernels_cutlass_gemm_fp8",
+        sources=[
+            "csrc/xpu/torch_extension_cutlass_gemm_fp8.sycl",
+        ],
+        include_dirs=[
+            root / "include",
+            root / "csrc",
+            sycl_tla_include,
+            sycl_tla_examples_common,
+            sycl_tla_tools_util_include,
+            sycl_tla_applications,
+        ],
+        extra_compile_args={
+            "cxx": ["-O3", "-std=c++17", *cutlass_common_defines],
+            "sycl": [
+                "-fsycl",
+                "-ffast-math",
+                "-fsycl-device-code-split=per_kernel",
+                "-fsycl-targets=spir64_gen",
+                "-Xs", "-device ptl -options -doubleGRF",
+                "-fno-sycl-instrument-device-code",
+                *cutlass_common_defines,
+                f"-I{torch_include}",
+            ],
+        },
+        extra_link_args=["-Wl,-rpath,$ORIGIN/../../torch/lib"],
+        py_limited_api=False,
+    )
+)
 
 setup(
     name="custom-esimd-kernels-vllm",

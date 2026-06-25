@@ -32,16 +32,27 @@ class sycl_tla_policy_n_64 : public sycl_tla_policy_base {
   using SGLayout = Layout<Shape<_8, _1, _1>, Stride<_1, _1, _0>>;
 };
 
-class sycl_tla_policy_m_16 : public sycl_tla_policy_base {
+class sycl_tla_policy_m_16_large_n : public sycl_tla_policy_base {
  public:
   using WGTile = Shape<_16, _256, _32>;
   using SGLayout = Layout<Shape<_2, _16, _1>, Stride<_16, _1, _0>>;
 };
+class sycl_tla_policy_m_16_small_n : public sycl_tla_policy_base {
+ public:
+  using WGTile = Shape<_8, _64, _64>;
+  using SGLayout = Layout<Shape<_1, _4, _1>, Stride<_4, _1, _0>>;
+};
 
-class sycl_tla_policy_m_32 : public sycl_tla_policy_base {
+class sycl_tla_policy_m_32_small_n : public sycl_tla_policy_base {
  public:
   using WGTile = Shape<_32, _64, _32>;
   using SGLayout = Layout<Shape<_1, _4, _1>, Stride<_4, _1, _0>>;
+};
+
+class sycl_tla_policy_m_32_large_n : public sycl_tla_policy_base {
+ public:
+  using WGTile = Shape<_32, _256, _32>;
+  using SGLayout = Layout<Shape<_4, _8, _1>, Stride<_8, _1, _0>>;
 };
 
 }  // namespace XeGemm

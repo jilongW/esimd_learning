@@ -446,6 +446,38 @@ def esimd_resadd_norm_gemv_fp8_pert(
         hidden_states, residual, norm_weight,
         gemv_weight, gemv_scale, output, normed_out, eps)
 
+def cutlass_gemm_sycl_tla_fp8(
+    input_A: torch.Tensor,
+    input_B: torch.Tensor,
+    output: torch.Tensor,
+    bias: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """SYCL-TLA CUTLASS FP8 weight GEMM wrapper.
+
+    input_A: [M, K] fp16 (activation)
+    input_B: [N, K] fp8 (weight, ColumnMajor / K-contiguous)
+    output: [M, N] fp16
+    bias: currently unsupported, must be None
+    """
+    if bias is not None:
+        raise ValueError("cutlass_gemm_sycl_tla_fp8 currently does not support bias")
+
+    if input_A.dim() != 2:
+        raise ValueError("input_A must be 2D [M, K]")
+    if input_B.dim() != 2:
+        raise ValueError("input_B must be 2D [N, K]")
+    if output.dim() != 2:
+        raise ValueError("output must be 2D [M, N]")
+
+    k = int(input_A.size(1))
+    n = int(input_B.size(0))
+
+    if int(input_B.size(1)) != k:
+        raise ValueError("input_B.size(1) must equal input_A.size(1) (K)")
+
+    return _ops.cutlass_gemm_sycl_tla_fp8(input_A, input_B, None, output, n, k)
+
+
 def esimd_qkv_split_norm_rope_gemma(
     qkv_state: torch.Tensor,
     q_out: torch.Tensor,
